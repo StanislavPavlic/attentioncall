@@ -88,7 +88,7 @@ class Basecaller(pl.LightningModule):
         self.log('val/ratio', val_ratio)
 
     def validation_epoch_end(self, validation_step_outputs):
-        dummy_input = torch.zeros(self.hparams["chunk_size"], device=self.device)
+        dummy_input = torch.zeros((1, self.hparams["chunk_size"]), device=self.device)
         model_filename = f"model_{str(self.global_step).zfill(5)}.onnx"
         torch.onnx.export(self, dummy_input, model_filename)
         wandb.save(model_filename)

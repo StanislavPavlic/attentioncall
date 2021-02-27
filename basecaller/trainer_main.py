@@ -44,6 +44,7 @@ if __name__ == '__main__':
     # init the trainer
     trainer = Trainer.from_argparse_args(
         args,
+        logger=wandb_logger,
         gpus=[1],
         callbacks=[BasecallLogger(samples)]
     )
