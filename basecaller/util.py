@@ -37,7 +37,10 @@ class BasecallLogger(pl.Callback):
         for call, ref in zip(calls, refs):
             table.add_data(call, ref)
 
-        trainer.logger.experiment.log({
-            "examples": table,
-            "global_step": trainer.global_step
-        })
+        trainer.logger.experiment.log(
+            {
+                "examples": table,
+                "global_step": trainer.global_step
+            },
+            commit=False
+        )
