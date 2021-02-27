@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import h5py
@@ -5,6 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
+import pytorch_lightning as pl
 
 base_to_idx = {
     'N': 0,
@@ -136,6 +138,43 @@ def pad_collate_fn(batch):
     batch[2] = torch.tensor(batch[2], dtype=torch.int32)
 
     return batch
+
+
+class BasecallDataModule(pl.LightningDataModule):
+    def __init__(self, train_set, val_set, batch_size=128, chunk_size=512, num_workers=0):
+        super().__init__()
+        self.train_set = train_set
+        self.val_set = val_set
+        self.batch_size = batch_size
+        self.chunk_size = chunk_size
+        self.num_workers = num_workers
+
+    def prepare_data(self):
+        if self.train_set is None:
+            print("Need at least one dataset")
+            sys.exit(1)
+
+    def setup(self, stage: str = None):
+        self.train_dataset = BasecallDataset(self.train_set, self.chunk_size)
+        self.val_dataset = BasecallDataset(self.val_set, self.chunk_size)
+
+    def train_dataloader(self):
+        return DataLoader(
+            self.train_dataset,
+            collate_fn=pad_collate_fn,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=True
+        )
+
+    def val_dataloader(self):
+        return DataLoader(
+            self.val_dataset,
+            collate_fn=pad_collate_fn,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=True
+        )
 
 
 def get_args():

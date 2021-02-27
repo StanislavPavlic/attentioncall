@@ -4,6 +4,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 
 from basecaller import Basecaller
+from datasets import BasecallDataModule
 from util import BasecallLogger
 
 if __name__ == '__main__':
@@ -28,6 +29,16 @@ if __name__ == '__main__':
     # init the model
     model = Basecaller(model_args)
 
+    # init the datamodule
+    datamodule = BasecallDataModule(
+        model_args.train_set,
+        model_args.val_set,
+        model_args.batch_size,
+        model_args.chunk_size,
+        model_args.num_workers
+    )
+    datamodule.prepare_data()
+    datamodule.setup()
     # get samples for logging
     samples = next(iter(model.val_dataloader()))
     # init the trainer

@@ -1,4 +1,3 @@
-import sys
 from argparse import ArgumentParser, Namespace
 
 import pytorch_lightning as pl
@@ -8,9 +7,8 @@ from Levenshtein import distance, ratio
 from fast_ctc_decode import viterbi_search
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import DataLoader
 
-from datasets import BasecallDataset, pad_collate_fn, base_to_idx, alphabet, to_seq
+from datasets import base_to_idx, alphabet, to_seq
 from poremodel import PoreModel
 from util import layers
 
@@ -31,37 +29,6 @@ class Basecaller(pl.LightningModule):
             nn.Linear(self.encoder_dim, self.encoder_dim // 2),
             nn.ReLU(),
             nn.Linear(self.encoder_dim // 2, self.n_classes)
-        )
-
-        self.train_dataset = None
-        self.val_dataset = None
-        self.test_dataset = None
-
-    def prepare_data(self):
-        if self.train_set is None:
-            print("Need at least one dataset")
-            sys.exit(1)
-
-    def setup(self, stage: str):
-        self.train_dataset = BasecallDataset(self.train_set, self.chunk_size)
-        self.val_dataset = BasecallDataset(self.val_set, self.chunk_size)
-
-    def train_dataloader(self):
-        return DataLoader(
-            self.train_dataset,
-            collate_fn=pad_collate_fn,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            pin_memory=True
-        )
-
-    def val_dataloader(self):
-        return DataLoader(
-            self.val_dataset,
-            collate_fn=pad_collate_fn,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            pin_memory=True
         )
 
     def forward(self, x):
