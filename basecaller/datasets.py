@@ -4,7 +4,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import pytorch_lightning as pl
 
@@ -187,7 +187,6 @@ def get_args():
 
 if __name__ == "__main__":
     import argparse
-    from torch.utils.data import DataLoader
 
     args = get_args()
 
