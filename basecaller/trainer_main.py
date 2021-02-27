@@ -40,7 +40,7 @@ if __name__ == '__main__':
     datamodule.prepare_data()
     datamodule.setup()
     # get samples for logging
-    samples = next(iter(model.val_dataloader()))
+    samples = next(iter(datamodule.val_dataloader()))
     # init the trainer
     trainer = Trainer.from_argparse_args(
         args,
@@ -48,6 +48,12 @@ if __name__ == '__main__':
         callbacks=[BasecallLogger(samples)]
     )
 
-    trainer.tune(model)
-    trainer.fit(model)
+    trainer.tune(
+        model=model,
+        datamodule=datamodule
+    )
+    trainer.fit(
+        model=model,
+        datamodule=datamodule
+    )
     # trainer.test(model)
