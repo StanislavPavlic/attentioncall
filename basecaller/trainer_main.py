@@ -1,13 +1,15 @@
 from argparse import ArgumentParser
 
 import torch
+from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import WandbLogger
 
 from basecaller import Basecaller
-from pore_model import Pore_Model
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
+from poremodel import PoreModel
+from util import BasecallLogger
 
 if __name__ == '__main__':
+    wandb_logger = WandbLogger(project="basecaller")
     parser = ArgumentParser(description='Basecaller')
 
     # add program level args
@@ -22,22 +24,21 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # init the trainer
-    ckpt_callback = ModelCheckpoint(
-        monitor='val_ratio',
-        save_last=True,
-        save_top_k=1,
-        filename='basecaller-{epoch:03d}-{val_ratio:.4f}'
-    )
-    trainer = Trainer.from_argparse_args(args, callbacks=[ckpt_callback], gpus=[1])
-
-    encoder = Pore_Model(args)
+    # init the model
+    encoder = PoreModel(args)
     if args.encoder is not None:
         sd = torch.load(args.encoder)
         encoder.load_state_dict(torch.load(args.encoder))
-
-    # init the model with Namespace directly
     model = Basecaller(args, encoder)
+
+    # get samples for logging
+    samples = next(iter(model.val_dataloader()))
+    # init the trainer
+    trainer = Trainer.from_argparse_args(
+        args,
+        gpus=[1],
+        callbacks=[BasecallLogger(samples)]
+    )
 
     trainer.tune(model)
     trainer.fit(model)

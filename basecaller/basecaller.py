@@ -1,33 +1,29 @@
-import random
 import sys
-from argparse import ArgumentParser
-
-import torch
-from torch import nn
-from torch.nn import functional as F
-from torch.utils.data import DataLoader, random_split
+from argparse import ArgumentParser, Namespace
 
 import pytorch_lightning as pl
-
-from fast_ctc_decode import viterbi_search
-
+import torch
+import wandb
 from Levenshtein import distance, ratio
+from fast_ctc_decode import viterbi_search
+from torch import nn
+from torch.nn import functional as F
+from torch.utils.data import DataLoader
 
 from datasets import BasecallDataset, pad_collate_fn, base_to_idx, alphabet, to_seq
-from pore_model import Pore_Model
+from poremodel import PoreModel
 from util import layers
 
 
 class Basecaller(pl.LightningModule):
-    def __init__(self, args, encoder: Pore_Model):
+    def __init__(self, args: Namespace, encoder: PoreModel):
         super().__init__()
-        self.save_hyperparameters()
-        self.args = args
-        self.lr = args.lr
-        self.gamma = args.gamma
+        for k, v in vars(args).items():
+            setattr(self, k, v)
+        self.save_hyperparameters(args)
         self.n_classes = len(base_to_idx)
         self.encoder = encoder
-        self.encoder_dim = args.fe_conv_layers[-1][0]
+        self.encoder_dim = self.fe_conv_layers[-1][0]
         self.fc = nn.Sequential(
             nn.Linear(self.encoder_dim, self.encoder_dim // 2),
             nn.ReLU(),
@@ -39,20 +35,20 @@ class Basecaller(pl.LightningModule):
         self.test_dataset = None
 
     def prepare_data(self):
-        if self.args.train_set is None:
+        if self.train_set is None:
             print("Need at least one dataset")
             sys.exit(1)
 
     def setup(self, stage: str):
-        self.train_dataset = BasecallDataset(self.args.train_set, self.args.chunk_size)
-        self.val_dataset = BasecallDataset(self.args.val_set, self.args.chunk_size)
+        self.train_dataset = BasecallDataset(self.train_set, self.chunk_size)
+        self.val_dataset = BasecallDataset(self.val_set, self.chunk_size)
 
     def train_dataloader(self):
         return DataLoader(
             self.train_dataset,
             collate_fn=pad_collate_fn,
-            batch_size=self.args.batch_size,
-            num_workers=self.args.num_workers,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
             pin_memory=True
         )
 
@@ -60,8 +56,8 @@ class Basecaller(pl.LightningModule):
         return DataLoader(
             self.val_dataset,
             collate_fn=pad_collate_fn,
-            batch_size=self.args.batch_size,
-            num_workers=self.args.num_workers,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
             pin_memory=True
         )
 
@@ -92,20 +88,20 @@ class Basecaller(pl.LightningModule):
         x = self.fc(x)
         x = x.transpose(0, 1)
         loss = self.get_loss(x, y, l)
-        self.log('train_loss', loss)
-        
+        self.log('train/loss', loss)
+
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y, l = batch
-        
+
         x_ = self.encoder(x)
         x_ = x_.transpose(1, 2)
         x_ = self.fc(x_)
         x_ = x_.transpose(0, 1)
         val_loss = self.get_loss(x_, y, l)
-        self.log('val_loss', val_loss)
-        
+        self.log('val/loss', val_loss)
+
         s = 0
         val_distance = 0
         val_ratio = 0
@@ -113,19 +109,22 @@ class Basecaller(pl.LightningModule):
         for i in range(len(l)):
             true = to_seq(y[s:s + l[i]])
             s += l[i]
-            val_distance += distance(true, pred[i])            
+            val_distance += distance(true, pred[i])
             val_ratio += ratio(true, pred[i])
         val_distance /= len(l)
         val_ratio /= len(l)
 
-        self.log('val_edit_distance', val_distance)
-        self.log('val_ratio', val_ratio)
+        self.log('val/edit_distance', val_distance)
+        self.log('val/ratio', val_ratio)
 
-        return {
-            'val_loss': val_loss,
-            'val_edit_distance': val_distance,
-            'val_ratio': val_ratio
-        }
+    def validation_epoch_end(self, validation_step_outputs):
+        dummy_x = torch.zeros(self.hparams["chunk_size"], device=self.device)
+        dummy_y = torch.zeros(self.hparams["chunk_size"] // 3, device=self.device)
+        dummy_l = torch.tensor(self.hparams["chunk_size"] // 3, device=self.device)
+        dummy_input = dummy_x, dummy_y, dummy_l
+        model_filename = f"model_{str(self.global_step).zfill(5)}.onnx"
+        torch.onnx.export(self, dummy_input, model_filename)
+        wandb.save(model_filename)
 
     def test_step(self, batch, batch_idx):
         # x = [N x T], y = [T'], l = [N]
@@ -137,8 +136,7 @@ class Basecaller(pl.LightningModule):
         # N x T x C -> T x N x C
         x = x.transpose(0, 1)
         loss = self.get_loss(x, y, l)
-        self.log('test_loss', loss)
-        return loss
+        self.log('test/loss', loss)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)

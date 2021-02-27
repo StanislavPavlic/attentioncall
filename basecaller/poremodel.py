@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 
-class Pore_Model(nn.Module):
+class PoreModel(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
