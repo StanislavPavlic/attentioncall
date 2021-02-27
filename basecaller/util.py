@@ -3,7 +3,7 @@ import argparse
 import pytorch_lightning as pl
 import wandb
 
-from basecaller.datasets import to_seq
+from datasets import to_seq
 
 
 def layers(params_str):

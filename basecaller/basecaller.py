@@ -16,12 +16,15 @@ from util import layers
 
 
 class Basecaller(pl.LightningModule):
-    def __init__(self, args: Namespace, encoder: PoreModel):
+    def __init__(self, args: Namespace):
         super().__init__()
         for k, v in vars(args).items():
             setattr(self, k, v)
         self.save_hyperparameters(args)
         self.n_classes = len(base_to_idx)
+        encoder = PoreModel(args)
+        if self.encoder is not None:
+            encoder.load_state_dict(torch.load(self.encoder))
         self.encoder = encoder
         self.encoder_dim = self.fe_conv_layers[-1][0]
         self.fc = nn.Sequential(
