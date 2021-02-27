@@ -19,7 +19,6 @@ class BasecallLogger(pl.Callback):
         super().__init__()
         self.val_x, self.val_y, self.val_l = val_samples
         self.val_x = self.val_x[:num_samples]
-        self.val_y = self.val_y[:num_samples]
         self.val_l = self.val_l[:num_samples]
 
     def on_validation_epoch_end(self, trainer, pl_module):
