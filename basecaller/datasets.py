@@ -164,7 +164,8 @@ class BasecallDataModule(pl.LightningDataModule):
             collate_fn=pad_collate_fn,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            pin_memory=True
+            pin_memory=True,
+            shuffle=True
         )
 
     def val_dataloader(self):
@@ -173,7 +174,8 @@ class BasecallDataModule(pl.LightningDataModule):
             collate_fn=pad_collate_fn,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            pin_memory=True
+            pin_memory=True,
+            shuffle=False
         )
 
 

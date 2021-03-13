@@ -3,14 +3,13 @@ from argparse import ArgumentParser, Namespace
 import pytorch_lightning as pl
 import torch
 import wandb
-from Levenshtein import distance, ratio
 from fast_ctc_decode import viterbi_search
 from torch import nn
 from torch.nn import functional as F
 
 from datasets import base_to_idx, alphabet, to_seq
 from poremodel import PoreModel
-from util import layers
+from util import layers, accuracy
 
 
 class Basecaller(pl.LightningModule):
@@ -73,25 +72,21 @@ class Basecaller(pl.LightningModule):
         self.log('val/loss', val_loss)
 
         s = 0
-        val_distance = 0
-        val_ratio = 0
+        val_acc = 0
         pred = self.forward(x)
         for i in range(len(l)):
             true = to_seq(y[s:s + l[i]])
             s += l[i]
-            val_distance += distance(true, pred[i])
-            val_ratio += ratio(true, pred[i])
-        val_distance /= len(l)
-        val_ratio /= len(l)
+            val_acc += accuracy(true, pred[i])
+        val_acc /= len(l)
 
-        self.log('val/edit_distance', val_distance)
-        self.log('val/ratio', val_ratio)
+        self.log('val/accuracy', val_acc)
 
     def validation_epoch_end(self, validation_step_outputs):
         dummy_input = torch.zeros((1, self.hparams["chunk_size"]), device=self.device)
         model_filename = f"model_{str(self.global_step).zfill(5)}.onnx"
-        torch.onnx.export(self, dummy_input, model_filename)
-        wandb.save(model_filename)
+        #torch.onnx.export(self, dummy_input, model_filename)
+        #wandb.save(model_filename)
 
     def test_step(self, batch, batch_idx):
         # x = [N x T], y = [T'], l = [N]
@@ -106,18 +101,30 @@ class Basecaller(pl.LightningModule):
         self.log('test/loss', loss)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.gamma)
-        return [optimizer], [scheduler]
+        optimizers = [torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-5)]
+        schedulers = [
+            torch.optim.lr_scheduler.ExponentialLR(optimizers[0], gamma=self.gamma)
+            #{
+            #    'scheduler': torch.optim.lr_scheduler.OneCycleLR(
+            #                     optimizers[0],
+            #                     max_lr=self.lr,
+            #                     epochs=50,
+            #                     steps_per_epoch=16872
+            #                 ),
+            #    'interval': 'step',
+            #    'frequency': 1
+            #}
+        ]
+        return optimizers, schedulers
 
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
 
-        parser.add_argument('--chunk_size', type=int, default=512,
+        parser.add_argument('--chunk_size', type=int, default=1000,
                             help="Signal chunk size")
 
-        parser.add_argument('--batch_size', type=int, default=64,
+        parser.add_argument('--batch_size', type=int, default=32,
                             help="Size of mini-batch")
 
         parser.add_argument('--num_workers', type=int, default=4,
@@ -133,7 +140,7 @@ class Basecaller(pl.LightningModule):
                             help="Encoder: saved state dictionary.")
 
         parser.add_argument('--fe_conv_layers', type=layers, nargs='+',
-                            default=[(64, 9, 3), (128, 45, 1), (256, 9, 1), (256, 27, 1), (512, 3, 1)],
+                            default=[(128, 9, 3), (256, 3, 1), (512, 3, 1)],
                             help="Feature encoder: set convolution layers")
 
         parser.add_argument('--fe_dropout', type=float, default=0.05,
@@ -151,7 +158,7 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--fe_repeat', type=int, default=5,
                             help="Feature encoder: number of times a block is repeated, does not apply to first block")
 
-        parser.add_argument('--trns_dim_feedforward', type=int, default=512,
+        parser.add_argument('--trns_dim_feedforward', type=int, default=1024,
                             help="Transformer: dimension of the feedforward network model used in transformer encoder")
 
         parser.add_argument('--trns_nhead', type=int, default=8,

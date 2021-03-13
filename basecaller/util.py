@@ -1,9 +1,15 @@
 import argparse
+import re
+from collections import defaultdict
 
 import pytorch_lightning as pl
+from edlib import align
 import wandb
 
 from datasets import to_seq
+
+
+split_cigar = re.compile(r"(?P<len>\d+)(?P<op>\D+)")
 
 
 def layers(params_str):
@@ -12,6 +18,19 @@ def layers(params_str):
     except:
         raise argparse.ArgumentTypeError(
             "Layer arguments must be in form of out_channels, kernel_size, stride. Example : \'256,10,2\'")
+
+
+def accuracy(ref, seq):
+    alignment = align(seq, ref, mode='HW', task='path')
+    counts = defaultdict(int)
+    cigar = alignment['cigar']
+
+    for count, op  in re.findall(split_cigar, cigar):
+        counts[op] += int(count)
+
+    acc = counts['='] / (counts['='] + counts['I'] + counts['X'] + counts['D'])
+    
+    return acc
 
 
 class BasecallLogger(pl.Callback):
