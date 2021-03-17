@@ -46,8 +46,8 @@ class Basecaller(pl.LightningModule):
     def get_loss(self, x, y, l):
         T, N, C = x.shape
         logits = F.log_softmax(x, dim=2)
-        logits_lengths = torch.full((N,), T, dtype=torch.int32)
-        loss = F.ctc_loss(logits.cpu(), y.cpu(), logits_lengths.cpu(), l.cpu(), zero_infinity=True)
+        logits_lengths = torch.full((N,), T, dtype=torch.int32, device='cpu')
+        loss = F.ctc_loss(logits, y.cpu(), logits_lengths, l.cpu(), zero_infinity=False)
         return loss
 
     def training_step(self, batch, batch_idx):
@@ -57,7 +57,8 @@ class Basecaller(pl.LightningModule):
         x = self.fc(x)
         x = x.transpose(0, 1)
         loss = self.get_loss(x, y, l)
-        self.log('train/loss', loss)
+        if torch.isfinite(loss):
+            self.log('train/loss', loss)
 
         return loss
 
@@ -69,7 +70,8 @@ class Basecaller(pl.LightningModule):
         x_ = self.fc(x_)
         x_ = x_.transpose(0, 1)
         val_loss = self.get_loss(x_, y, l)
-        self.log('val/loss', val_loss)
+        if torch.isfinite(val_loss):
+            self.log('val/loss', val_loss)
 
         s = 0
         val_acc = 0
@@ -140,10 +142,10 @@ class Basecaller(pl.LightningModule):
                             help="Encoder: saved state dictionary.")
 
         parser.add_argument('--fe_conv_layers', type=layers, nargs='+',
-                            default=[(128, 9, 3), (256, 3, 1), (512, 3, 1)],
+                            default=[(256, 11, 3), (512, 3, 1)],
                             help="Feature encoder: set convolution layers")
 
-        parser.add_argument('--fe_dropout', type=float, default=0.05,
+        parser.add_argument('--fe_dropout', type=float, default=0,
                             help="Feature encoder: dropout")
 
         parser.add_argument('--fe_bias', default=False, action='store_true',
@@ -155,19 +157,19 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--fe_separable', default=True, action='store_true',
                             help="Feature encoder: turn on separable convolutions")
 
-        parser.add_argument('--fe_repeat', type=int, default=5,
+        parser.add_argument('--fe_repeat', type=int, default=3,
                             help="Feature encoder: number of times a block is repeated, does not apply to first block")
 
         parser.add_argument('--trns_dim_feedforward', type=int, default=1024,
                             help="Transformer: dimension of the feedforward network model used in transformer encoder")
 
-        parser.add_argument('--trns_nhead', type=int, default=8,
+        parser.add_argument('--trns_nhead', type=int, default=16,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=6,
+        parser.add_argument('--trns_n_layers', type=int, default=4,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
-        parser.add_argument('--trns_dropout', type=float, default=0.05,
+        parser.add_argument('--trns_dropout', type=float, default=0,
                             help="Transformer: dropout")
 
         parser.add_argument('--trns_activation', type=str, default='gelu',
