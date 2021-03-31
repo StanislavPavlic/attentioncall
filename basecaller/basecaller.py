@@ -3,7 +3,7 @@ from argparse import ArgumentParser, Namespace
 import pytorch_lightning as pl
 import torch
 import wandb
-from fast_ctc_decode import viterbi_search
+from fast_ctc_decode import viterbi_search, beam_search
 from torch import nn
 from torch.nn import functional as F
 
@@ -13,8 +13,12 @@ from util import layers, accuracy
 
 
 class Basecaller(pl.LightningModule):
-    def __init__(self, args: Namespace):
+    def __init__(self, args: Namespace, train_mode=True):
         super().__init__()
+        if train_mode:
+            self.save_hyperparameters(args)
+        else:
+            args = Namespace(**args)
         for k, v in vars(args).items():
             setattr(self, k, v)
         self.save_hyperparameters(args)
@@ -30,7 +34,7 @@ class Basecaller(pl.LightningModule):
             nn.Linear(self.encoder_dim // 2, self.n_classes)
         )
 
-    def forward(self, x):
+    def forward(self, x, beam_size=1):
         # x = [T x H]
         # T x H -> T x C
         seqs = []
@@ -39,7 +43,10 @@ class Basecaller(pl.LightningModule):
         x = self.fc(x)
         x = F.softmax(x, 1)
         for x_ in x:
-            seq, _ = viterbi_search(x_.cpu().numpy(), alphabet)
+            if beam_size == 1:
+                seq, _ = viterbi_search(x_.detach().cpu().numpy(), alphabet)
+            else:
+                seq, _ = beam_search(x_.detach().cpu().numpy(), alphabet, beam_size=beam_size, beam_cut_threshold=0)
             seqs.append(seq)
         return seqs
 
@@ -163,10 +170,10 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--trns_dim_feedforward', type=int, default=1024,
                             help="Transformer: dimension of the feedforward network model used in transformer encoder")
 
-        parser.add_argument('--trns_nhead', type=int, default=16,
+        parser.add_argument('--trns_nhead', type=int, default=8,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=4,
+        parser.add_argument('--trns_n_layers', type=int, default=8,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
         parser.add_argument('--trns_dropout', type=float, default=0,

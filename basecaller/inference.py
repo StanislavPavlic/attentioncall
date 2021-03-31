@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import time
 
 import numpy as np
 from tqdm import tqdm
@@ -8,7 +9,7 @@ import torch
 from torch.nn import functional as F
 import pytorch_lightning as pl
 
-from basecaller.basecaller import Basecaller
+from basecaller import Basecaller
 
 
 def get_files(path, recursive=False):
@@ -44,8 +45,7 @@ def get_reads(path, recursive=False):
 
 
 def load_model(path):
-    model = Basecaller.load_from_checkpoint(path)
-    model.eval()
+    model = Basecaller.load_from_checkpoint(path, train_mode=False)
     return model
 
 
@@ -55,24 +55,38 @@ def basecall(model, reads, batch_size=32, chunk_size=0, beamsize=1):
 
 
 if __name__ == '__main__':
+    start_time = time.time()
+
+    with open("basecalls.fasta", "w") as f:
+        f.write("")
+
     model_path = sys.argv[1]
     read_path = sys.argv[2]
     model = load_model(model_path)
+    model.eval()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
     batch_size = model.batch_size
     chunk_size = model.chunk_size
     reads = get_reads(read_path)
-    for read_id, read in reads:
+    for i, (read_id, read) in enumerate(tqdm(reads)):
         T = read.shape[0]
         regular_remainder = T % (batch_size * chunk_size)
         full_chunk_remainder = regular_remainder % chunk_size
         batches = list(read[:-regular_remainder].view(-1, batch_size, chunk_size))
-        batches.append(read[-regular_remainder:-full_chunk_remainder].view(-1, chunk_size))
-        batches.append(read[-full_chunk_remainder:].view(1, -1))
+        incomplete_batch = read[-regular_remainder:-full_chunk_remainder if full_chunk_remainder else None].view(-1, chunk_size) 
+        if len(incomplete_batch) > 0: 
+            batches.append(incomplete_batch)
+        chunk_remainder = read[-full_chunk_remainder:].view(1, -1)
+        if full_chunk_remainder > 0:
+            batches.append(chunk_remainder)
 
         basecalled_seq = ""
         for batch in batches:
-            pred = model(batch)
+            batch = batch.to(device)
+            pred = model(batch, beam_size=5)
             basecalled_seq += ''.join(pred)
 
         with open("basecalls.fasta", "a") as f:
             f.writelines([">" + read_id + "\n", basecalled_seq + "\n"])
+    print(f"Seconds elapsed: {time.time() - start_time} s")
