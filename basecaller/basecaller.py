@@ -15,19 +15,22 @@ from util import layers, accuracy
 class Basecaller(pl.LightningModule):
     def __init__(self, args: Namespace, train_mode=True):
         super().__init__()
+
         if train_mode:
             self.save_hyperparameters(args)
         else:
             args = Namespace(**args)
+
         for k, v in vars(args).items():
             setattr(self, k, v)
-        self.save_hyperparameters(args)
-        self.n_classes = len(base_to_idx)
+
         encoder = PoreModel(args)
         if self.encoder is not None:
             encoder.load_state_dict(torch.load(self.encoder))
         self.encoder = encoder
         self.encoder_dim = self.fe_conv_layers[-1][0]
+
+        self.n_classes = len(base_to_idx)
         self.fc = nn.Sequential(
             nn.Linear(self.encoder_dim, self.encoder_dim // 2),
             nn.ReLU(),
@@ -139,7 +142,7 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--num_workers', type=int, default=4,
                             help="How many subprocesses to use for data loading")
 
-        parser.add_argument('--lr', type=float, default=1e-4,
+        parser.add_argument('--lr', type=float, default=1e-3,
                             help="Learning rate")
 
         parser.add_argument('--gamma', type=float, default=1,
@@ -149,7 +152,7 @@ class Basecaller(pl.LightningModule):
                             help="Encoder: saved state dictionary.")
 
         parser.add_argument('--fe_conv_layers', type=layers, nargs='+',
-                            default=[(256, 11, 3), (512, 3, 1)],
+                            default=[(128, 11, 3), (256, 5, 1), (256, 5, 1), (256, 3, 1), (256, 3, 1), (512, 3, 1), (512, 3, 1)],
                             help="Feature encoder: set convolution layers")
 
         parser.add_argument('--fe_dropout', type=float, default=0,
@@ -164,7 +167,7 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--fe_separable', default=True, action='store_true',
                             help="Feature encoder: turn on separable convolutions")
 
-        parser.add_argument('--fe_repeat', type=int, default=3,
+        parser.add_argument('--fe_repeat', type=int, default=5,
                             help="Feature encoder: number of times a block is repeated, does not apply to first block")
 
         parser.add_argument('--trns_dim_feedforward', type=int, default=1024,
@@ -173,7 +176,7 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--trns_nhead', type=int, default=8,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=8,
+        parser.add_argument('--trns_n_layers', type=int, default=4,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
         parser.add_argument('--trns_dropout', type=float, default=0,
