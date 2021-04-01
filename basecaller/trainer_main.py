@@ -2,13 +2,14 @@ from argparse import ArgumentParser
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.callbacks import LearningRateMonitor
 
 from basecaller import Basecaller
 from datasets import BasecallDataModule
 from util import BasecallLogger
 
 if __name__ == '__main__':
-    wandb_logger = WandbLogger(project="basecaller")
+    wandb_logger = WandbLogger(project="basecaller", entity='stole')
 
     model_parser = ArgumentParser(add_help=False)
 
@@ -45,14 +46,11 @@ if __name__ == '__main__':
     trainer = Trainer.from_argparse_args(
         args,
         logger=wandb_logger,
-        gpus=[1],
-        callbacks=[BasecallLogger(samples)]
+        gpus=[0],
+        callbacks=[BasecallLogger(samples), LearningRateMonitor()],
+        precision=16
     )
 
-    trainer.tune(
-        model=model,
-        datamodule=datamodule
-    )
     trainer.fit(
         model=model,
         datamodule=datamodule

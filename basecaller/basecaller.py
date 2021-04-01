@@ -25,19 +25,19 @@ class Basecaller(pl.LightningModule):
         self.encoder = encoder
         self.encoder_dim = self.fe_conv_layers[-1][0]
         self.fc = nn.Sequential(
-            nn.Linear(self.encoder_dim, self.encoder_dim // 2),
-            nn.ReLU(),
-            nn.Linear(self.encoder_dim // 2, self.n_classes)
+            #nn.Linear(self.encoder_dim, self.encoder_dim // 2),
+            #nn.ReLU(),
+            nn.Linear(512, self.n_classes)
         )
 
     def forward(self, x):
         # x = [T x H]
         # T x H -> T x C
         seqs = []
-        x = self.encoder(x)
-        x = x.transpose(1, 2)
-        x = self.fc(x)
-        x = F.softmax(x, 1)
+        x = self.encoder(x)  # S x B x F
+        x = self.fc(x)        # S x B x C
+        x = x.transpose(1, 0)  # B x S x C
+        x = F.softmax(x, 2)  
         for x_ in x:
             seq, _ = viterbi_search(x_.cpu().numpy(), alphabet)
             seqs.append(seq)
@@ -53,9 +53,7 @@ class Basecaller(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y, l = batch
         x = self.encoder(x)
-        x = x.transpose(1, 2)
         x = self.fc(x)
-        x = x.transpose(0, 1)
         loss = self.get_loss(x, y, l)
         if torch.isfinite(loss):
             self.log('train/loss', loss)
@@ -66,9 +64,7 @@ class Basecaller(pl.LightningModule):
         x, y, l = batch
 
         x_ = self.encoder(x)
-        x_ = x_.transpose(1, 2)
         x_ = self.fc(x_)
-        x_ = x_.transpose(0, 1)
         val_loss = self.get_loss(x_, y, l)
         if torch.isfinite(val_loss):
             self.log('val/loss', val_loss)
@@ -79,7 +75,10 @@ class Basecaller(pl.LightningModule):
         for i in range(len(l)):
             true = to_seq(y[s:s + l[i]])
             s += l[i]
-            val_acc += accuracy(true, pred[i])
+            try:
+                val_acc += accuracy(true, pred[i])
+            except:
+                continue
         val_acc /= len(l)
 
         self.log('val/accuracy', val_acc)
@@ -103,21 +102,17 @@ class Basecaller(pl.LightningModule):
         self.log('test/loss', loss)
 
     def configure_optimizers(self):
-        optimizers = [torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-5)]
-        schedulers = [
-            torch.optim.lr_scheduler.ExponentialLR(optimizers[0], gamma=self.gamma)
-            #{
-            #    'scheduler': torch.optim.lr_scheduler.OneCycleLR(
-            #                     optimizers[0],
-            #                     max_lr=self.lr,
-            #                     epochs=50,
-            #                     steps_per_epoch=16872
-            #                 ),
-            #    'interval': 'step',
-            #    'frequency': 1
-            #}
-        ]
-        return optimizers, schedulers
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-4, eps=1e-7)
+
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 7e-4, div_factor=10,
+                        epochs=10, steps_per_epoch=12597//2, cycle_momentum=False)
+        lr_scheduler = {
+        'scheduler': scheduler,
+        'name': '1CycleLR',
+        'interval': 'step', 
+        'frequency': 1}
+
+        return [optimizer], [lr_scheduler]
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -126,13 +121,13 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--chunk_size', type=int, default=1000,
                             help="Signal chunk size")
 
-        parser.add_argument('--batch_size', type=int, default=32,
+        parser.add_argument('--batch_size', type=int, default=64,
                             help="Size of mini-batch")
 
         parser.add_argument('--num_workers', type=int, default=4,
                             help="How many subprocesses to use for data loading")
 
-        parser.add_argument('--lr', type=float, default=1e-4,
+        parser.add_argument('--lr', type=float, default=3e-4,
                             help="Learning rate")
 
         parser.add_argument('--gamma', type=float, default=1,
