@@ -44,7 +44,7 @@ class Basecaller(pl.LightningModule):
         x = self.encoder(x)
         x = x.transpose(1, 2)
         x = self.fc(x)
-        x = F.softmax(x, 1)
+        x = F.softmax(x, -1)
         for x_ in x:
             if beam_size == 1:
                 seq, _ = viterbi_search(x_.detach().cpu().numpy(), alphabet)
@@ -142,7 +142,7 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--num_workers', type=int, default=4,
                             help="How many subprocesses to use for data loading")
 
-        parser.add_argument('--lr', type=float, default=1e-3,
+        parser.add_argument('--lr', type=float, default=3e-5,
                             help="Learning rate")
 
         parser.add_argument('--gamma', type=float, default=1,
