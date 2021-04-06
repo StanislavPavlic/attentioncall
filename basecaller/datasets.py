@@ -112,6 +112,11 @@ class BasecallDataset(Dataset):
                     chunkify(signal, ref_to_signal, reference, chunk_len)
                 )
 
+        ratio = []
+        for _, r in self.examples:
+            ratio.append(len(r) / 1000)
+        print(np.mean(ratio), np.std(ratio))
+
     def __len__(self):
         return len(self.examples)
 

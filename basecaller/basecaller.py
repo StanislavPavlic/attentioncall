@@ -13,50 +13,71 @@ from util import layers, accuracy
 
 
 class Basecaller(pl.LightningModule):
-    def __init__(self, args: Namespace):
+    def __init__(self, args: Namespace, train_mode=True):
         super().__init__()
+
+        if train_mode:
+            self.save_hyperparameters(args)
+        else:
+            args = Namespace(**args)
+
         for k, v in vars(args).items():
             setattr(self, k, v)
-        self.save_hyperparameters(args)
-        self.n_classes = len(base_to_idx)
+ 
         encoder = PoreModel(args)
         if self.encoder is not None:
             encoder.load_state_dict(torch.load(self.encoder))
         self.encoder = encoder
         self.encoder_dim = self.fe_conv_layers[-1][0]
+
+        self.n_classes = len(base_to_idx)
         self.fc = nn.Sequential(
             #nn.Linear(self.encoder_dim, self.encoder_dim // 2),
             #nn.ReLU(),
             nn.Linear(512, self.n_classes)
         )
 
-    def forward(self, x):
+    def forward(self, x, beam_size=5):
         # x = [T x H]
         # T x H -> T x C
         seqs = []
         x = self.encoder(x)  # S x B x F
         x = self.fc(x)        # S x B x C
         x = x.transpose(1, 0)  # B x S x C
-        x = F.softmax(x, 2)  
+        x = F.softmax(x, 2)
         for x_ in x:
             seq, _ = viterbi_search(x_.cpu().numpy(), alphabet)
             seqs.append(seq)
         return seqs
 
-    def get_loss(self, x, y, l):
+    def get_losses(self, x, y, l):
+        # CTC loss
         T, N, C = x.shape
         logits = F.log_softmax(x, dim=2)
         logits_lengths = torch.full((N,), T, dtype=torch.int32, device='cpu')
-        loss = F.ctc_loss(logits, y.cpu(), logits_lengths, l.cpu(), zero_infinity=False)
-        return loss
+        ctc_loss = F.ctc_loss(logits, y.cpu(), logits_lengths, l.cpu(), zero_infinity=False)
+
+        # KLDiv
+        log_preds = logits.view(-1, C)
+        uniform = torch.full_like(log_preds, 1. / C) 
+        probs = uniform
+        #probs = torch.tensor([[0.7, 0.075, 0.075, 0.075, 0.075]], device=log_preds.device)
+        #probs = probs.repeat(N*T, 1)
+
+        kl_loss = F.kl_div(log_preds, probs, reduction='batchmean')
+
+        loss = ctc_loss + 0.0001 * kl_loss
+        return loss, ctc_loss, kl_loss
 
     def training_step(self, batch, batch_idx):
         x, y, l = batch
         x = self.encoder(x)
         x = self.fc(x)
-        loss = self.get_loss(x, y, l)
+        loss, ctc_loss, kl_loss = self.get_losses(x, y, l)
         if torch.isfinite(loss):
             self.log('train/loss', loss)
+            self.log('train/ctc_loss', ctc_loss)
+            self.log('train/kl_loss', kl_loss)
 
         return loss
 
@@ -65,9 +86,11 @@ class Basecaller(pl.LightningModule):
 
         x_ = self.encoder(x)
         x_ = self.fc(x_)
-        val_loss = self.get_loss(x_, y, l)
+        val_loss, ctc_loss, kl_loss = self.get_losses(x_, y, l)
         if torch.isfinite(val_loss):
             self.log('val/loss', val_loss)
+            self.log('val/ctc_loss', ctc_loss)
+            self.log('val/kl_loss', kl_loss)
 
         s = 0
         val_acc = 0
@@ -102,10 +125,10 @@ class Basecaller(pl.LightningModule):
         self.log('test/loss', loss)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-4, eps=1e-7)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-4, eps=1e-6)
 
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 7e-4, div_factor=10,
-                        epochs=10, steps_per_epoch=12597//2, cycle_momentum=False)
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 2*5e-4, div_factor=10,
+                        epochs=25, steps_per_epoch=12597//4, cycle_momentum=False, pct_start=0.15)
         lr_scheduler = {
         'scheduler': scheduler,
         'name': '1CycleLR',

@@ -3,99 +3,28 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-from layers import PreEncoderLayer
-
-
-class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
-        super().__init__()
-
-        self.layers = nn.Sequential(
-                     nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=True),
-                     #nn.InstanceNorm1d(out_channels, affine=True),
-                     nn.BatchNorm1d(out_channels),
-                     nn.GELU())
-
-    def forward(self, x):
-        return self.layers(x)
-
-
-class ResnetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
-        super().__init__()
-
-        self.layers = nn.Sequential(
-                     nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=False),
-                     nn.BatchNorm1d(out_channels),
-                     nn.GELU(),
-                     nn.Conv1d(out_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=False),
-                     nn.BatchNorm1d(out_channels))
-
-    def forward(self, x):
-        identity = x
-
-        x = self.layers(x)
-        x += identity
-
-        return F.gelu(x)
 
 
 class PoreModel(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-
-        self.conv1 = ConvBlock(1, 512, 13, stride=3, padding=6)
-        self.conv2 = ConvBlock(512, 512, 3, stride=1, padding=1)
-        self.conv3 = ConvBlock(512, 512, 3, stride=1, padding=1)
-
-        #self.rn1 = ResnetBlock(512, 512, 5, stride=1, padding=2)
-        #self.rn2 = ResnetBlock(512, 512, 5, stride=1, padding=2)
-        #self.rn3 = ResnetBlock(512, 512, 5, stride=1, padding=2)
-
-        # self.conv_pos = nn.Conv1d(512, 512, 335, padding=335//2, bias=False, groups=256)
-        self.pe = PositionalEncoding(512)
-
-        #encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8, dim_feedforward=2048, dropout=0.1, activation='gelu')
-        encoder_layer = PreEncoderLayer(d_model=512, nhead=8, dim_feedforward=2048, dropout=0.1, activation='gelu')
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=6, norm=nn.LayerNorm(512))
-
-        #mask = (torch.triu(torch.ones(334, 334)) == 1).transpose(0, 1)
-        #mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-        #self.register_buffer('mask', mask)
-
-        #mask = torch.full((334, 334), True)
-        #for i in range(334):
-        #    start = max(i - 5, 0)
-        #    end = min(i + 6, 334)
-        #    mask[i, start:end] = False
-        #self.register_buffer('mask', mask)
+        self.feature_encoder = FeatureEncoder(args.fe_conv_layers, args.fe_bias, args.fe_residual, args.fe_dropout,
+                                              args.fe_repeat, args.fe_separable)
+        self.transformer = Transformer(args.fe_conv_layers[-1][0], args.trns_nhead, args.trns_dim_feedforward,
+                                       args.trns_n_layers, args.trns_dropout, args.trns_activation)
 
     def forward(self, x):
         # T is generic
         # BN x C x T
-        x = x.unsqueeze(1)
-        
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        
-        #x = self.rn1(x)
-        #x = self.rn2(x)
-        #x = self.rn3(x)
-
-        #pe = self.conv_pos(x)
-        #x = x + pe
-
+        x = self.feature_encoder(x)
         # T x BN x C
         x = x.permute(2, 0, 1)
         # T x BN x F
-        x = self.pe(x)
-        x = self.encoder(x)
-
-        return x  # T x B x F
+        x = self.transformer(x)
+        # BN x F x T
+        x = x.permute(1, 2, 0)
+        return x
 
 
 class FeatureEncoderBlock(nn.Module):
@@ -219,7 +148,7 @@ class FeatureEncoder(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, dropout=0.1, max_len=334):
+    def __init__(self, d_model, dropout=0.1, max_len=2400):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
