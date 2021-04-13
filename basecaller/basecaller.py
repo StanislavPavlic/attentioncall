@@ -40,17 +40,18 @@ class Basecaller(pl.LightningModule):
     def forward(self, x, beam_size=1):
         # x = [T x H]
         # T x H -> T x C
-        seqs = []
-        x = self.encoder(x)
-        x = x.transpose(1, 2)
-        x = self.fc(x)
-        x = F.softmax(x, -1)
-        for x_ in x:
-            if beam_size == 1:
-                seq, _ = viterbi_search(x_.detach().cpu().numpy(), alphabet)
-            else:
-                seq, _ = beam_search(x_.detach().cpu().numpy(), alphabet, beam_size=beam_size, beam_cut_threshold=0)
-            seqs.append(seq)
+        with torch.no_grad():
+            seqs = []
+            x = self.encoder(x)
+            x = x.transpose(1, 2)
+            x = self.fc(x)
+            x = F.softmax(x, -1)
+            for x_ in x:
+                if beam_size == 1:
+                    seq, _ = viterbi_search(x_.cpu().numpy(), alphabet)
+                else:
+                    seq, _ = beam_search(x_.cpu().numpy(), alphabet, beam_size=beam_size, beam_cut_threshold=0)
+                seqs.append(seq)
         return seqs
 
     def get_loss(self, x, y, l):
@@ -86,11 +87,17 @@ class Basecaller(pl.LightningModule):
         s = 0
         val_acc = 0
         pred = self.forward(x)
+        n = len(l)
         for i in range(len(l)):
             true = to_seq(y[s:s + l[i]])
             s += l[i]
-            val_acc += accuracy(true, pred[i])
-        val_acc /= len(l)
+            acc = accuracy(true, pred[i])
+            if acc is None:
+                n -= 1
+            else:
+                val_acc += acc
+        if n > 0:
+            val_acc /= n
 
         self.log('val/accuracy', val_acc)
 
@@ -133,7 +140,7 @@ class Basecaller(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
 
-        parser.add_argument('--chunk_size', type=int, default=1000,
+        parser.add_argument('--chunk_size', type=int, default=1024,
                             help="Signal chunk size")
 
         parser.add_argument('--batch_size', type=int, default=32,
@@ -152,10 +159,10 @@ class Basecaller(pl.LightningModule):
                             help="Encoder: saved state dictionary.")
 
         parser.add_argument('--fe_conv_layers', type=layers, nargs='+',
-                            default=[(128, 11, 3), (256, 5, 1), (256, 5, 1), (256, 3, 1), (256, 3, 1), (512, 3, 1), (512, 3, 1)],
+                            default=[(512, 11, 3), (512, 3, 1), (512, 15, 1), (512, 3, 1)],
                             help="Feature encoder: set convolution layers")
 
-        parser.add_argument('--fe_dropout', type=float, default=0,
+        parser.add_argument('--fe_dropout', type=float, default=0.0,
                             help="Feature encoder: dropout")
 
         parser.add_argument('--fe_bias', default=False, action='store_true',
@@ -170,16 +177,16 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--fe_repeat', type=int, default=5,
                             help="Feature encoder: number of times a block is repeated, does not apply to first block")
 
-        parser.add_argument('--trns_dim_feedforward', type=int, default=1024,
+        parser.add_argument('--trns_dim_feedforward', type=int, default=2048,
                             help="Transformer: dimension of the feedforward network model used in transformer encoder")
 
         parser.add_argument('--trns_nhead', type=int, default=8,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=4,
+        parser.add_argument('--trns_n_layers', type=int, default=8,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
-        parser.add_argument('--trns_dropout', type=float, default=0,
+        parser.add_argument('--trns_dropout', type=float, default=0.0,
                             help="Transformer: dropout")
 
         parser.add_argument('--trns_activation', type=str, default='gelu',

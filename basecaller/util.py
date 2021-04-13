@@ -25,6 +25,11 @@ def accuracy(ref, seq, nice=False):
     counts = defaultdict(int)
     cigar = alignment['cigar']
 
+    if cigar is None:
+        if nice:
+            return None, None
+        return None
+
     for count, op  in re.findall(split_cigar, cigar):
         counts[op] += int(count)
 
@@ -58,7 +63,8 @@ class BasecallLogger(pl.Callback):
 
         for call, ref in zip(calls, self.refs):
             acc, alignment = accuracy(call, ref, nice=True)
-            table.add_data(call, ref, acc, alignment)
+            if acc is not None:
+                table.add_data(call, ref, acc, alignment)
 
         trainer.logger.experiment.log(
             {
