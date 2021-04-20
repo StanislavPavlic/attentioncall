@@ -45,6 +45,9 @@ def accuracy(ref, seq, nice=False):
 class BasecallLogger(pl.Callback):
     def __init__(self, val_samples, num_samples=10):
         super().__init__()
+        self.val_samples = val_samples
+        if val_samples is None:
+            return
         self.val_x, self.val_y, self.val_l = val_samples
         self.val_x = self.val_x[:num_samples]
         self.val_l = self.val_l[:num_samples]
@@ -55,6 +58,8 @@ class BasecallLogger(pl.Callback):
             s += l
 
     def on_validation_epoch_end(self, trainer, pl_module):
+        if self.val_samples is None:
+            return
         val_x = self.val_x.to(device=pl_module.device)
 
         calls = pl_module(val_x)

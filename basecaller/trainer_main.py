@@ -2,12 +2,14 @@ from argparse import ArgumentParser
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.utilities.seed import seed_everything
 
 from basecaller import Basecaller
 from datasets import BasecallDataModule
 from util import BasecallLogger
 
 if __name__ == '__main__':
+    seed_everything(seed=42)
     wandb_logger = WandbLogger(project="basecaller")
 
     model_parser = ArgumentParser(add_help=False)
@@ -37,15 +39,17 @@ if __name__ == '__main__':
         model_args.chunk_size,
         model_args.num_workers
     )
-    datamodule.prepare_data()
-    datamodule.setup()
+    #datamodule.prepare_data()
+    #datamodule.setup()
     # get samples for logging
-    samples = next(iter(datamodule.val_dataloader()))
+    #samples = next(iter(datamodule.val_dataloader()))
+    samples = None
     # init the trainer
     trainer = Trainer.from_argparse_args(
         args,
         logger=wandb_logger,
         gpus=[1],
+        auto_select_gpus=False,
         callbacks=[BasecallLogger(samples)]
     )
 

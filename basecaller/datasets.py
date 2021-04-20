@@ -111,6 +111,10 @@ class BasecallDataset(Dataset):
                 self.examples.extend(
                     chunkify(signal, ref_to_signal, reference, chunk_len)
                 )
+        lens = np.array([len(example[1]) for example in self.examples])
+        len_mean = lens.mean()
+        len_std = lens.std()
+        self.examples = [example for example in self.examples if abs(len(example[1]) - len_mean) <= 2.5 * len_std]
 
     def __len__(self):
         return len(self.examples)
