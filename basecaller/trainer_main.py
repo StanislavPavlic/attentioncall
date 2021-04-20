@@ -6,7 +6,6 @@ from pytorch_lightning.utilities.seed import seed_everything
 
 from basecaller import Basecaller
 from datasets import BasecallDataModule
-from util import BasecallLogger
 
 if __name__ == '__main__':
     seed_everything(seed=42)
@@ -39,18 +38,12 @@ if __name__ == '__main__':
         model_args.chunk_size,
         model_args.num_workers
     )
-    #datamodule.prepare_data()
-    #datamodule.setup()
-    # get samples for logging
-    #samples = next(iter(datamodule.val_dataloader()))
-    samples = None
     # init the trainer
     trainer = Trainer.from_argparse_args(
         args,
         logger=wandb_logger,
         gpus=[1],
-        auto_select_gpus=False,
-        callbacks=[BasecallLogger(samples)]
+        auto_select_gpus=False
     )
 
     trainer.tune(

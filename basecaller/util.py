@@ -8,7 +8,6 @@ import wandb
 
 from datasets import to_seq
 
-
 split_cigar = re.compile(r"(?P<len>\d+)(?P<op>\D+)")
 
 
@@ -30,11 +29,11 @@ def accuracy(ref, seq, nice=False):
             return None, None
         return None
 
-    for count, op  in re.findall(split_cigar, cigar):
+    for count, op in re.findall(split_cigar, cigar):
         counts[op] += int(count)
 
     acc = counts['='] / (counts['='] + counts['I'] + counts['X'] + counts['D'])
-    
+
     if nice:
         nice_align = getNiceAlignment(alignment, seq, ref)
         nice_str = '\n'.join([nice_align['query_aligned'], nice_align['matched_aligned'], nice_align['target_aligned']])

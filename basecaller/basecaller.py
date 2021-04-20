@@ -2,7 +2,6 @@ from argparse import ArgumentParser, Namespace
 
 import pytorch_lightning as pl
 import torch
-import wandb
 from fast_ctc_decode import viterbi_search, beam_search
 from torch import nn
 from torch.nn import functional as F
@@ -38,8 +37,6 @@ class Basecaller(pl.LightningModule):
         )
 
     def forward(self, x, beam_size=1):
-        # x = [T x H]
-        # T x H -> T x C
         with torch.no_grad():
             seqs = []
             x = self.encoder(x)
@@ -82,7 +79,7 @@ class Basecaller(pl.LightningModule):
         x_ = x_.transpose(0, 1)
         val_loss = self.get_loss(x_, y, l)
         if torch.isfinite(val_loss):
-            self.log('val/loss', val_loss)
+            self.log('val/loss', val_loss, sync_dist=True)
 
         s = 0
         val_acc = 0
@@ -99,31 +96,31 @@ class Basecaller(pl.LightningModule):
         if n > 0:
             val_acc /= n
 
-        self.log('val/accuracy', val_acc)
+        self.log('val/accuracy', val_acc, sync_dist=True)
 
-    def validation_epoch_end(self, validation_step_outputs):
-        dummy_input = torch.zeros((1, self.hparams["chunk_size"]), device=self.device)
-        model_filename = f"model_{str(self.global_step).zfill(5)}.onnx"
-        #torch.onnx.export(self, dummy_input, model_filename)
-        #wandb.save(model_filename)
+    # def validation_epoch_end(self, validation_step_outputs):
+    #     dummy_input = torch.zeros((1, self.hparams["chunk_size"]), device=self.device)
+    #     model_filename = f"model_{str(self.global_step).zfill(5)}.onnx"
+    #     torch.onnx.export(self, dummy_input, model_filename)
+    #     wandb.save(model_filename)
 
-    def test_step(self, batch, batch_idx):
-        # x = [N x T], y = [T'], l = [N]
-        x, y, l = batch
-        # N x T -> N x T x E
-        x = self.encoder(x)
-        # N x T x E -> N x T x C
-        x = self.fc(x)
-        # N x T x C -> T x N x C
-        x = x.transpose(0, 1)
-        loss = self.get_loss(x, y, l)
-        self.log('test/loss', loss)
+    # def test_step(self, batch, batch_idx):
+    #     # x = [N x T], y = [T'], l = [N]
+    #     x, y, l = batch
+    #     # N x T -> N x T x E
+    #     x = self.encoder(x)
+    #     # N x T x E -> N x T x C
+    #     x = self.fc(x)
+    #     # N x T x C -> T x N x C
+    #     x = x.transpose(0, 1)
+    #     loss = self.get_loss(x, y, l)
+    #     self.log('test/loss', loss, sync_dist=True)
 
     def configure_optimizers(self):
         optimizers = [torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-5)]
         schedulers = [
             torch.optim.lr_scheduler.ExponentialLR(optimizers[0], gamma=self.gamma)
-            #{
+            # {
             #    'scheduler': torch.optim.lr_scheduler.OneCycleLR(
             #                     optimizers[0],
             #                     max_lr=self.lr,
@@ -132,7 +129,7 @@ class Basecaller(pl.LightningModule):
             #                 ),
             #    'interval': 'step',
             #    'frequency': 1
-            #}
+            # }
         ]
         return optimizers, schedulers
 

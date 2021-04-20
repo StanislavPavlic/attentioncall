@@ -1,13 +1,11 @@
 import sys
-from pathlib import Path
 import time
+from pathlib import Path
 
 import numpy as np
-from tqdm import tqdm
-from ont_fast5_api.fast5_interface import get_fast5_file
 import torch
-from torch.nn import functional as F
-import pytorch_lightning as pl
+from ont_fast5_api.fast5_interface import get_fast5_file
+from tqdm import tqdm
 
 from basecaller import Basecaller
 
@@ -74,8 +72,9 @@ if __name__ == '__main__':
         regular_remainder = T % (batch_size * chunk_size)
         full_chunk_remainder = regular_remainder % chunk_size
         batches = list(read[:-regular_remainder].view(-1, batch_size, chunk_size))
-        incomplete_batch = read[-regular_remainder:-full_chunk_remainder if full_chunk_remainder else None].view(-1, chunk_size) 
-        if len(incomplete_batch) > 0: 
+        incomplete_batch = read[-regular_remainder:-full_chunk_remainder if full_chunk_remainder else None].view(-1,
+                                                                                                                 chunk_size)
+        if len(incomplete_batch) > 0:
             batches.append(incomplete_batch)
         chunk_remainder = read[-full_chunk_remainder:].view(1, -1)
         if full_chunk_remainder > 0:
