@@ -3,6 +3,7 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
+from rezero.transformer import RZTXEncoderLayer
 
 
 class PoreModel(nn.Module):
@@ -168,8 +169,8 @@ class PositionalEncoding(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, embedding_dim, nhead, dim_feedforward=1024, n_layers=8, dropout=0.1, activation='gelu'):
         super(Transformer, self).__init__()
-        enc_layer = nn.TransformerEncoderLayer(d_model=embedding_dim, dim_feedforward=dim_feedforward,
-                                               nhead=nhead, activation=activation, dropout=dropout)
+        enc_layer = RZTXEncoderLayer(d_model=embedding_dim, nhead=nhead, dim_feedforward=dim_feedforward,
+                                     dropout=dropout, activation=activation)
         self.transformer_encoder = nn.TransformerEncoder(enc_layer, n_layers)
         self.pos_encoder = PositionalEncoding(embedding_dim, dropout)
 
