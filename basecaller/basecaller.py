@@ -137,10 +137,10 @@ class Basecaller(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
 
-        parser.add_argument('--chunk_size', type=int, default=256,
+        parser.add_argument('--chunk_size', type=int, default=1024,
                             help="Signal chunk size")
 
-        parser.add_argument('--batch_size', type=int, default=128,
+        parser.add_argument('--batch_size', type=int, default=32,
                             help="Size of mini-batch")
 
         parser.add_argument('--num_workers', type=int, default=4,
@@ -174,13 +174,13 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--fe_repeat', type=int, default=5,
                             help="Feature encoder: number of times a block is repeated, does not apply to first block")
 
-        parser.add_argument('--trns_dim_feedforward', type=int, default=512,
+        parser.add_argument('--trns_dim_feedforward', type=int, default=2048,
                             help="Transformer: dimension of the feedforward network model used in transformer encoder")
 
         parser.add_argument('--trns_nhead', type=int, default=8,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=4,
+        parser.add_argument('--trns_n_layers', type=int, default=8,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
         parser.add_argument('--trns_dropout', type=float, default=0.0,
