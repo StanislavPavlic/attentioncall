@@ -10,21 +10,21 @@ class PoreModel(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
+        self.contract_dim = 100
         self.feature_encoder = FeatureEncoder(args.fe_conv_layers, args.fe_bias, args.fe_residual, args.fe_dropout,
                                               args.fe_repeat, args.fe_separable)
+        self.contractor = nn.Linear(args.chunk_size // args.fe_conv_layers[0][2], self.contract_dim)
         self.transformer = Transformer(args.fe_conv_layers[-1][0], args.trns_nhead, args.trns_dim_feedforward,
                                        args.trns_n_layers, args.trns_dropout, args.trns_activation)
+        self.expander = nn.Linear(self.contract_dim, args.chunk_size // args.fe_conv_layers[0][2])
 
     def forward(self, x):
-        # T is generic
-        # BN x C x T
-        x = self.feature_encoder(x)
-        # T x BN x C
-        x = x.permute(2, 0, 1)
-        # T x BN x F
-        x = self.transformer(x)
-        # BN x F x T
-        x = x.permute(1, 2, 0)
+        x = self.feature_encoder(x)  # B x C x T
+        x = self.contractor(x)
+        x = x.permute(2, 0, 1)  # T x B x C
+        x = self.transformer(x)  # T x B x F
+        x = x.permute(1, 2, 0)  # B x F x T
+        x = self.expander(x)
         return x
 
 
@@ -169,8 +169,8 @@ class PositionalEncoding(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, embedding_dim, nhead, dim_feedforward=1024, n_layers=8, dropout=0.1, activation='gelu'):
         super(Transformer, self).__init__()
-        enc_layer = RZTXEncoderLayer(d_model=embedding_dim, nhead=nhead, dim_feedforward=dim_feedforward,
-                                     dropout=dropout, activation=activation)
+        enc_layer = nn.TransformerEncoderLayer(d_model=embedding_dim, nhead=nhead, dim_feedforward=dim_feedforward,
+                                               dropout=dropout, activation=activation)
         self.transformer_encoder = nn.TransformerEncoder(enc_layer, n_layers)
         self.pos_encoder = PositionalEncoding(embedding_dim, dropout)
 
