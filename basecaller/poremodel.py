@@ -3,103 +3,138 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-from rezero.transformer import RZTXEncoderLayer
 
 
 class PoreModel(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.contract_dim = 100
-        self.feature_encoder = FeatureEncoder(args.fe_conv_layers, args.fe_bias, args.fe_residual, args.fe_dropout,
-                                              args.fe_repeat, args.fe_separable)
-        self.contractor = nn.Linear(args.chunk_size // args.fe_conv_layers[0][2], self.contract_dim)
+        self.feature_encoder = FeatureEncoder(args.fe_conv_layers, args.fe_bias)
         self.transformer = Transformer(args.fe_conv_layers[-1][0], args.trns_nhead, args.trns_dim_feedforward,
                                        args.trns_n_layers, args.trns_dropout, args.trns_activation)
-        self.expander = nn.Linear(self.contract_dim, args.chunk_size // args.fe_conv_layers[0][2])
+        self.feature_decoder = FeatureDecoder(args.fe_conv_layers, args.fe_bias, args.encoder_dim)
 
     def forward(self, x):
         x = self.feature_encoder(x)  # B x C x T
-        x = self.contractor(x)
         x = x.permute(2, 0, 1)  # T x B x C
         x = self.transformer(x)  # T x B x F
         x = x.permute(1, 2, 0)  # B x F x T
-        x = self.expander(x)
+        x = self.feature_decoder(x)  # B x O x T
+        return x
+
+
+class FeatureDecoderBlock(nn.Module):
+    """
+    Feature decoder block which consists of a transposed 1D convolution, batch normalization and a GELU activation.
+    """
+
+    def __init__(self, in_channels: int, conv_t: Tuple[int, int, int], bias: bool = False):
+        super(FeatureDecoderBlock, self).__init__()
+
+        out_channels, kernel_size, stride = conv_t
+        self.block = nn.ModuleList()
+        if stride > 1:
+            self.block.append(
+                nn.ConvTranspose1d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=stride,
+                    stride=stride,
+                    bias=bias
+                )
+            )
+        else:
+            self.block.append(
+                nn.Conv1d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=kernel_size,
+                    stride=1,
+                    padding=kernel_size // 2,
+                    bias=bias
+                )
+            )
+        self.block.extend(
+            [
+                nn.BatchNorm1d(out_channels),
+                nn.GELU()
+            ]
+        )
+
+    def forward(self, x):
+        for layer in self.block:
+            x = layer(x)
+        return x
+
+
+class FeatureDecoder(nn.Module):
+    """
+    Feature decoder which consists of feature decoder blocks that decodes 1D temporal data using transposed convolution.
+    """
+
+    def __init__(self, conv_layers: List[Tuple[int, int, int]], bias: bool = False, out_dim: int = 64):
+        super(FeatureDecoder, self).__init__()
+
+        conv_t_layers = conv_layers[::-1]
+        in_channels = conv_t_layers[0][0]
+        for i in range(1, len(conv_t_layers)):
+            conv_t_layers[i - 1][0] = conv_t_layers[i][0]
+        conv_t_layers[-1][0] = out_dim
+        self.blocks = nn.ModuleList()
+        for conv_t in conv_t_layers:
+            self.blocks.append(
+                FeatureDecoderBlock(
+                    in_channels=in_channels,
+                    conv_t=conv_t,
+                    bias=bias
+                )
+            )
+            in_channels = conv_t[0]
+
+    def forward(self, x):
+        for block in self.blocks:
+            x = block(x)
         return x
 
 
 class FeatureEncoderBlock(nn.Module):
     """
-    Feature encoder block which consists of a 1D convolution, batch normalization and a ReLU activation.
+    Feature encoder block which consists of a 1D convolution, 1d pooling, batch normalization and a GELU activation.
     """
 
-    def __init__(self, in_channels: int, conv: Tuple[int, int, int], bias: bool = False, dropout: float = 0.0,
-                 separable: bool = False, repeat: int = 1, residual: bool = False):
+    def __init__(self, in_channels: int, conv: Tuple[int, int, int], bias: bool = False):
         super(FeatureEncoderBlock, self).__init__()
 
-        self.use_residual = residual
-
+        out_channels, kernel_size, stride = conv
         self.block = nn.ModuleList()
-        out_channels, conv_kernel_size, conv_stride = conv
-        in_channels_ = in_channels
-        for _ in range(repeat - 1):
-            self.block.extend(
-                self.get_elem(in_channels_, out_channels, conv_kernel_size, conv_stride, bias, separable)
-            )
-            in_channels_ = out_channels
-        self.block.extend(
-            self.get_elem(in_channels_, out_channels, conv_kernel_size, conv_stride, bias, separable)
-        )
-
         self.block.append(
-            nn.BatchNorm1d(out_channels)
-        )
-
-        if residual:
-            self.residual = nn.Sequential(
-                nn.Conv1d(
-                    in_channels, out_channels, kernel_size=1, stride=1,
-                    padding=0, bias=False
-                ),
-                nn.BatchNorm1d(out_channels)
+            nn.Conv1d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=kernel_size // 2,
+                bias=bias
             )
-
-        self.activation = nn.Sequential(
-            nn.GELU(),
-            nn.Dropout(dropout)
+        )
+        if stride > 1:
+            self.block.append(
+                nn.MaxPool1d(
+                    kernel_size=stride,
+                    stride=stride
+                )
+            )
+        self.block.extend(
+            [
+                nn.BatchNorm1d(out_channels),
+                nn.GELU()
+            ]
         )
 
     def forward(self, x):
-        x_ = x
         for layer in self.block:
             x = layer(x)
-        if self.use_residual:
-            x = x + self.residual(x_)
-        x = self.activation(x)
         return x
-
-    @staticmethod
-    def get_elem(in_channels, out_channels, conv_kernel_size, conv_stride, bias, separable):
-        if separable:
-            elem = [
-                nn.Conv1d(
-                    in_channels, in_channels, kernel_size=conv_kernel_size, stride=conv_stride,
-                    padding=conv_kernel_size // 2, bias=bias, groups=in_channels
-                ),
-                nn.Conv1d(
-                    in_channels, out_channels, kernel_size=1, stride=1,
-                    padding=0, bias=bias
-                )
-            ]
-        else:
-            elem = [
-                nn.Conv1d(
-                    in_channels, out_channels, kernel_size=conv_kernel_size, stride=conv_stride,
-                    padding=conv_kernel_size // 2, bias=bias
-                )
-            ]
-
-        return elem
 
 
 class FeatureEncoder(nn.Module):
@@ -107,36 +142,17 @@ class FeatureEncoder(nn.Module):
     Feature encoder which consists of feature encoder blocks that encodes 1D temporal data using convolution.
     """
 
-    def __init__(self, conv_layers: List[Tuple[int, int, int]], bias: bool = False, residual: bool = False,
-                 dropout: float = 0.0, repeat: int = 1, separable: bool = True):
+    def __init__(self, conv_layers: List[Tuple[int, int, int]], bias: bool = False):
         super(FeatureEncoder, self).__init__()
-
-        self.residual = residual
 
         self.blocks = nn.ModuleList()
         in_channels = 1
-        self.blocks.append(
-            FeatureEncoderBlock(
-                in_channels=in_channels,
-                conv=conv_layers[0],
-                bias=bias,
-                dropout=dropout,
-                separable=False,
-                repeat=1,
-                residual=False
-            )
-        )
-        in_channels = conv_layers[0][0]
-        for conv in conv_layers[1:]:
+        for conv in conv_layers:
             self.blocks.append(
                 FeatureEncoderBlock(
                     in_channels=in_channels,
                     conv=conv,
-                    bias=bias,
-                    dropout=dropout,
-                    separable=separable,
-                    repeat=repeat,
-                    residual=residual
+                    bias=bias
                 )
             )
             in_channels = conv[0]

@@ -27,14 +27,9 @@ class Basecaller(pl.LightningModule):
         if self.encoder is not None:
             encoder.load_state_dict(torch.load(self.encoder))
         self.encoder = encoder
-        self.encoder_dim = self.fe_conv_layers[-1][0]
 
         self.n_classes = len(base_to_idx)
-        self.fc = nn.Sequential(
-            nn.Linear(self.encoder_dim, self.encoder_dim // 2),
-            nn.ReLU(),
-            nn.Linear(self.encoder_dim // 2, self.n_classes)
-        )
+        self.fc = nn.Linear(self.encoder_dim, self.n_classes)
 
     def forward(self, x, beam_size=1):
         with torch.no_grad():
@@ -137,7 +132,7 @@ class Basecaller(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
 
-        parser.add_argument('--chunk_size', type=int, default=1024,
+        parser.add_argument('--chunk_size', type=int, default=4096,
                             help="Signal chunk size")
 
         parser.add_argument('--batch_size', type=int, default=32,
@@ -155,8 +150,11 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--encoder', type=str, default=None,
                             help="Encoder: saved state dictionary.")
 
+        parser.add_argument('--encoder_dim', type=int, default=64,
+                            help="Encoder: dimension of the encoder output")
+
         parser.add_argument('--fe_conv_layers', type=layers, nargs='+',
-                            default=[(512, 11, 3), (512, 3, 1), (512, 15, 1), (512, 3, 1)],
+                            default=[(64, 3, 1), (64, 3, 2), (128, 3, 2), (256, 3, 2), (512, 3, 2), (512, 3, 1)],
                             help="Feature encoder: set convolution layers")
 
         parser.add_argument('--fe_dropout', type=float, default=0.0,
@@ -174,13 +172,13 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--fe_repeat', type=int, default=5,
                             help="Feature encoder: number of times a block is repeated, does not apply to first block")
 
-        parser.add_argument('--trns_dim_feedforward', type=int, default=2048,
+        parser.add_argument('--trns_dim_feedforward', type=int, default=1024,
                             help="Transformer: dimension of the feedforward network model used in transformer encoder")
 
         parser.add_argument('--trns_nhead', type=int, default=8,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=8,
+        parser.add_argument('--trns_n_layers', type=int, default=12,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
         parser.add_argument('--trns_dropout', type=float, default=0.0,
