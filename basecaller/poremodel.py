@@ -78,8 +78,11 @@ class FeatureDecoder(nn.Module):
         conv_t_layers = conv_layers[::-1]
         in_channels = conv_t_layers[0][0]
         for i in range(1, len(conv_t_layers)):
-            conv_t_layers[i - 1][0] = conv_t_layers[i][0]
-        conv_t_layers[-1][0] = out_dim
+            _, prev_k, prev_s = conv_t_layers[i - 1]
+            curr_c, _, _ = conv_t_layers[i]
+            conv_t_layers[i - 1] = (curr_c, prev_k, prev_s)
+        _, last_k, last_s = conv_t_layers[-1]
+        conv_t_layers[-1] = (out_dim, last_k, last_s)
         self.blocks = nn.ModuleList()
         for conv_t in conv_t_layers:
             self.blocks.append(
