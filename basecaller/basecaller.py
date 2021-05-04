@@ -150,11 +150,11 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--encoder', type=str, default=None,
                             help="Encoder: saved state dictionary.")
 
-        parser.add_argument('--encoder_dim', type=int, default=64,
+        parser.add_argument('--encoder_dim', type=int, default=128,
                             help="Encoder: dimension of the encoder output")
 
         parser.add_argument('--fe_conv_layers', type=layers, nargs='+',
-                            default=[(64, 3, 1), (64, 3, 2), (128, 3, 2), (256, 3, 2), (512, 3, 2), (512, 3, 1)],
+                            default=[(64, 3, 2), (128, 3, 2), (256, 3, 2), (512, 3, 2), (512, 3, 1)],
                             help="Feature encoder: set convolution layers")
 
         parser.add_argument('--fe_dropout', type=float, default=0.0,

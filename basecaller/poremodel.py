@@ -12,7 +12,7 @@ class PoreModel(nn.Module):
         self.feature_encoder = FeatureEncoder(args.fe_conv_layers, args.fe_bias)
         self.transformer = Transformer(args.fe_conv_layers[-1][0], args.trns_nhead, args.trns_dim_feedforward,
                                        args.trns_n_layers, args.trns_dropout, args.trns_activation)
-        self.feature_decoder = FeatureDecoder(args.fe_conv_layers, args.fe_bias, args.encoder_dim)
+        self.feature_decoder = FeatureDecoder(args.fe_conv_layers[2:], args.fe_bias, args.encoder_dim)
 
     def forward(self, x):
         x = self.feature_encoder(x)  # B x C x T
