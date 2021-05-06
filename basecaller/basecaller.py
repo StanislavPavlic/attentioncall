@@ -132,7 +132,7 @@ class Basecaller(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
 
-        parser.add_argument('--chunk_size', type=int, default=4096,
+        parser.add_argument('--chunk_size', type=int, default=1024,
                             help="Signal chunk size")
 
         parser.add_argument('--batch_size', type=int, default=32,
@@ -154,7 +154,7 @@ class Basecaller(pl.LightningModule):
                             help="Encoder: dimension of the encoder output")
 
         parser.add_argument('--fe_conv_layers', type=layers, nargs='+',
-                            default=[(64, 3, 2), (128, 3, 2), (256, 3, 2), (512, 3, 2), (512, 3, 1)],
+                            default=[(64, 3, 2), (128, 3, 2), (256, 3, 2), (512, 3, 1), (512, 3, 1)],
                             help="Feature encoder: set convolution layers")
 
         parser.add_argument('--fe_dropout', type=float, default=0.0,
@@ -178,7 +178,7 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--trns_nhead', type=int, default=8,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=12,
+        parser.add_argument('--trns_n_layers', type=int, default=8,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
         parser.add_argument('--trns_dropout', type=float, default=0.0,
