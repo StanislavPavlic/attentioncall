@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-from rezero.transformer import RZTXEncoderLayer
+from nystrom_attention import Nystromformer
 
 
 class PoreModel(nn.Module):
@@ -12,8 +12,16 @@ class PoreModel(nn.Module):
         self.args = args
         self.feature_encoder = FeatureEncoder(args.fe_conv_layers, args.fe_bias, args.fe_residual, args.fe_dropout,
                                               args.fe_repeat, args.fe_separable)
-        self.transformer = Transformer(args.fe_conv_layers[-1][0], args.trns_nhead, args.trns_dim_feedforward,
-                                       args.trns_n_layers, args.trns_dropout, args.trns_activation)
+        self.transformer = Nystromformer(
+            dim=args.fe_conv_layers[-1][0],
+            depth=args.trns_n_layers,
+            dim_head=args.trns_dim_feedforward // args.trns_nhead,
+            heads=args.trns_nhead,
+            ff_dropout=args.trns_dropout,
+            attn_dropout=args.trns_dropout
+        )
+        # self.transformer = Transformer(args.fe_conv_layers[-1][0], args.trns_nhead, args.trns_dim_feedforward,
+        #                                args.trns_n_layers, args.trns_dropout, args.trns_activation)
 
     def forward(self, x):
         # T is generic
@@ -169,8 +177,8 @@ class PositionalEncoding(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, embedding_dim, nhead, dim_feedforward=1024, n_layers=8, dropout=0.1, activation='gelu'):
         super(Transformer, self).__init__()
-        enc_layer = RZTXEncoderLayer(d_model=embedding_dim, nhead=nhead, dim_feedforward=dim_feedforward,
-                                     dropout=dropout, activation=activation)
+        enc_layer = nn.TransformerEncoderLayer(d_model=embedding_dim, nhead=nhead, dim_feedforward=dim_feedforward,
+                                               dropout=dropout, activation=activation)
         self.transformer_encoder = nn.TransformerEncoder(enc_layer, n_layers)
         self.pos_encoder = PositionalEncoding(embedding_dim, dropout)
 
