@@ -110,7 +110,7 @@ class Basecaller(pl.LightningModule):
         if self.encoder is not None:
             encoder.load_state_dict(torch.load(self.encoder))
         self.encoder = encoder
-        self.decoder = FeatureDecoder(args.fd_conv_t_layers, args.fd_bias, args.fd_repeat)
+        self.decoder = FeatureDecoder(args.encoder_dim, args.fd_conv_t_layers, args.fd_bias, args.fd_repeat)
         self.n_classes = len(base_to_idx)
         self.fc = nn.Linear(args.fd_conv_t_layers[-1][0], self.n_classes)
 
@@ -218,10 +218,10 @@ class Basecaller(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
 
-        parser.add_argument('--chunk_size', type=int, default=2048,
+        parser.add_argument('--chunk_size', type=int, default=1024,
                             help="Signal chunk size")
 
-        parser.add_argument('--batch_size', type=int, default=32,
+        parser.add_argument('--batch_size', type=int, default=128,
                             help="Size of mini-batch")
 
         parser.add_argument('--num_workers', type=int, default=4,
@@ -234,7 +234,10 @@ class Basecaller(pl.LightningModule):
                             help="Learning rate decay factor")
 
         parser.add_argument('--encoder', type=str, default=None,
-                            help="Encoder: saved state dictionary.")
+                            help="Encoder: saved state dictionary")
+
+        parser.add_argument('--encoder_dim', type=int, default=512,
+                            help="Dimension of encoder output")
 
         parser.add_argument('--fe_conv_layers', type=layers, nargs='+',
                             default=[
@@ -266,7 +269,7 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--trns_nhead', type=int, default=8,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=10,
+        parser.add_argument('--trns_n_layers', type=int, default=8,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
         parser.add_argument('--trns_dropout', type=float, default=0.0,

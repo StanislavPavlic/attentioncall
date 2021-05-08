@@ -9,8 +9,9 @@ class PoreModel(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
+        assert args.encoder_dim == args.fe_conv_layers[-1][0], "Check that the encoder out dimension fits the number of channels in the last conv layer"
         self.feature_encoder = FeatureEncoder(args.fe_conv_layers, args.fe_bias, args.fe_repeat)
-        self.transformer = Transformer(args.fe_conv_layers[-1][0], args.trns_nhead, args.trns_dim_feedforward,
+        self.transformer = Transformer(args.encoder_dim, args.trns_nhead, args.trns_dim_feedforward,
                                        args.trns_n_layers, args.trns_dropout, args.trns_activation)
 
     def forward(self, x):
