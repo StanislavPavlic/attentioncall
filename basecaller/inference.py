@@ -88,7 +88,7 @@ if __name__ == '__main__':
             batch = torch.from_numpy(batch).to(device)
             if mask:
                 mask = torch.from_numpy(mask).to(device)
-            pred = model(batch, mask=mask)
+            pred = model(batch, padding_mask=mask)
             basecalled_seq += ''.join(pred)
 
         with open("basecalls.fasta", "a") as f:
