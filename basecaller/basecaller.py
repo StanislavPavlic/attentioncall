@@ -126,7 +126,7 @@ class Basecaller(pl.LightningModule):
             x = self.decoder(x)
             x = x.transpose(1, 2)
             x = self.fc(x)
-            if padding_mask:
+            if padding_mask is not None:
                 pad = padding_mask[-1].sum()
                 pad = torch.ceil(pad / self.downsample_factor)
                 x[-1, -pad:, 1:] -= float('inf')

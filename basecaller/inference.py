@@ -86,7 +86,7 @@ if __name__ == '__main__':
         basecalled_seq = ""
         for batch, mask in zip(batches, masks):
             batch = torch.from_numpy(batch).to(device)
-            if mask:
+            if mask is not None:
                 mask = torch.from_numpy(mask).to(device)
             pred = model(batch, padding_mask=mask)
             basecalled_seq += ''.join(pred)
