@@ -113,15 +113,24 @@ class Basecaller(pl.LightningModule):
         self.decoder = FeatureDecoder(args.encoder_dim, args.fd_conv_t_layers, args.fd_bias, args.fd_repeat)
         self.n_classes = len(base_to_idx)
         self.fc = nn.Linear(args.fd_conv_t_layers[-1][0], self.n_classes)
+        self.downsample_factor = 1
+        for conv in args.fe_conv_layers:
+            self.downsample_factor *= conv[2]
+        for conv_t in args.fd_conv_t_layers:
+            self.downsample_factor /= conv_t[2]
 
-    def forward(self, x, beam_size=1):
+    def forward(self, x, beam_size=1, padding_mask=None):
         with torch.no_grad():
             seqs = []
-            x = self.encoder(x)
+            x = self.encoder(x, padding_mask=padding_mask)
             x = self.decoder(x)
             x = x.transpose(1, 2)
             x = self.fc(x)
-            x = F.softmax(x, -1)
+            if padding_mask:
+                pad = padding_mask[-1].sum()
+                pad = torch.ceil(pad / self.downsample_factor)
+                x[-1, -pad:, 1:] -= float('inf')
+            x = F.softmax(x, dim=-1)
             for x_ in x:
                 if beam_size == 1:
                     seq, _ = viterbi_search(x_.cpu().numpy(), alphabet)

@@ -14,10 +14,10 @@ class PoreModel(nn.Module):
         self.transformer = Transformer(args.encoder_dim, args.trns_nhead, args.trns_dim_feedforward,
                                        args.trns_n_layers, args.trns_dropout, args.trns_activation)
 
-    def forward(self, x):
+    def forward(self, x, padding_mask=None):
         x = self.feature_encoder(x)  # B x C x T
         x = x.permute(2, 0, 1)  # T x B x C
-        x = self.transformer(x)  # T x B x F
+        x = self.transformer(x, padding_mask=padding_mask)  # T x B x F
         x = x.permute(1, 2, 0)  # B x F x T
         return x
 
@@ -118,8 +118,8 @@ class Transformer(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(enc_layer, n_layers)
         self.pos_encoder = PositionalEncoding(embedding_dim, dropout)
 
-    def forward(self, x, mask=None):
+    def forward(self, x, padding_mask=None):
         # input => S x N x E, S = input sequence time steps, N = batch size, E = features
         x = self.pos_encoder(x)
-        x = self.transformer_encoder(x, mask)
+        x = self.transformer_encoder(x, src_key_padding_mask=padding_mask)
         return x

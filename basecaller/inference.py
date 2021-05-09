@@ -38,7 +38,7 @@ def get_reads(path, recursive=False):
     reads = []
     for file in tqdm(files):
         with get_fast5_file(str(file), mode='r') as f5:
-            reads += [(read.read_id, torch.from_numpy(get_signal_data(read))) for read in f5.get_reads()]
+            reads += [(read.read_id, get_signal_data(read)) for read in f5.get_reads()]
     return reads
 
 
@@ -66,24 +66,29 @@ if __name__ == '__main__':
     model.to(device)
     batch_size = model.batch_size
     chunk_size = model.chunk_size
+    nhead = model.trns_nhead
     reads = get_reads(read_path)
     for i, (read_id, read) in enumerate(tqdm(reads)):
         T = read.shape[0]
-        regular_remainder = T % (batch_size * chunk_size)
-        full_chunk_remainder = regular_remainder % chunk_size
-        batches = list(read[:-regular_remainder].view(-1, batch_size, chunk_size))
-        incomplete_batch = read[-regular_remainder:-full_chunk_remainder if full_chunk_remainder else None].view(-1,
-                                                                                                                 chunk_size)
-        if len(incomplete_batch) > 0:
-            batches.append(incomplete_batch)
-        chunk_remainder = read[-full_chunk_remainder:].view(1, -1)
-        if full_chunk_remainder > 0:
-            batches.append(chunk_remainder)
+        remainder = T % (batch_size * chunk_size)
+        last_batch_size = remainder // chunk_size + 1
+        batches = list(read[:-remainder].reshape(-1, batch_size, chunk_size))
+        masks = [None] * len(batches)
+
+        last_batch = np.zeros(last_batch_size * chunk_size)
+        last_batch[:remainder] = read[-remainder:]
+        last_batch = last_batch.reshape(last_batch_size, chunk_size)
+        mask = np.zeros((last_batch_size, chunk_size), dtype=bool)
+        mask[-1, -remainder:] = True
+        batches.append(last_batch)
+        masks.append(mask)
 
         basecalled_seq = ""
-        for batch in batches:
-            batch = batch.to(device)
-            pred = model(batch, beam_size=5)
+        for batch, mask in zip(batches, masks):
+            batch = torch.from_numpy(batch).to(device)
+            if mask:
+                mask = torch.from_numpy(mask).to(device)
+            pred = model(batch, mask=mask)
             basecalled_seq += ''.join(pred)
 
         with open("basecalls.fasta", "a") as f:
