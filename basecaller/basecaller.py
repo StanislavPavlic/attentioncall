@@ -1,5 +1,6 @@
 from argparse import ArgumentParser, Namespace
 from typing import Tuple, List, Union, Dict
+from math import ceil
 
 import pytorch_lightning as pl
 import torch
@@ -116,19 +117,26 @@ class Basecaller(pl.LightningModule):
         self.downsample_factor = 1
         for conv in args.fe_conv_layers:
             self.downsample_factor *= conv[2]
+        self.upsample_factor = 1
         for conv_t in args.fd_conv_t_layers:
-            self.downsample_factor /= conv_t[2]
+            self.upsample_factor *= conv_t[2]
 
-    def forward(self, x, beam_size=1, padding_mask=None):
+    def forward(self, x, beam_size=1, pad=None):
         with torch.no_grad():
             seqs = []
+            if pad is not None:
+                batch_size = x.shape[0]
+                padding_mask = torch.zeros(
+                    (batch_size, self.chunk_size // self.downsample_factor)
+                ).type_as(x).type(torch.BoolTensor)
+                pad = ceil(pad / self.downsample_factor)
+                padding_mask[-1, -pad:] = True
             x = self.encoder(x, padding_mask=padding_mask)
             x = self.decoder(x)
             x = x.transpose(1, 2)
             x = self.fc(x)
-            if padding_mask is not None:
-                pad = padding_mask[-1].sum()
-                pad = torch.ceil(pad / self.downsample_factor)
+            if pad is not None:
+                pad *= self.upsample_factor
                 x[-1, -pad:, 1:] -= float('inf')
             x = F.softmax(x, dim=-1)
             for x_ in x:

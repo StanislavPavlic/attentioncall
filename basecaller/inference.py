@@ -73,22 +73,21 @@ if __name__ == '__main__':
         remainder = T % (batch_size * chunk_size)
         last_batch_size = remainder // chunk_size + 1
         batches = list(read[:-remainder].reshape(-1, batch_size, chunk_size))
-        masks = [None] * len(batches)
+        pads = [None] * len(batches)
 
-        last_batch = np.zeros(last_batch_size * chunk_size)
+        last_batch = np.zeros(last_batch_size * chunk_size, dtype=np.float32)
         last_batch[:remainder] = read[-remainder:]
         last_batch = last_batch.reshape(last_batch_size, chunk_size)
-        mask = np.zeros((last_batch_size, chunk_size), dtype=bool)
-        mask[-1, -remainder:] = True
+        pad = last_batch_size * chunk_size - remainder
+        batches = []
+        pads = []
         batches.append(last_batch)
-        masks.append(mask)
+        pads.append(pad)
 
         basecalled_seq = ""
-        for batch, mask in zip(batches, masks):
+        for batch, pad in zip(batches, pads):
             batch = torch.from_numpy(batch).to(device)
-            if mask is not None:
-                mask = torch.from_numpy(mask).to(device)
-            pred = model(batch, padding_mask=mask)
+            pred = model(batch, pad=pad)
             basecalled_seq += ''.join(pred)
 
         with open("basecalls.fasta", "a") as f:
