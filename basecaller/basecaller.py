@@ -128,9 +128,11 @@ class Basecaller(pl.LightningModule):
                 batch_size = x.shape[0]
                 padding_mask = torch.zeros(
                     (batch_size, self.chunk_size // self.downsample_factor)
-                ).type_as(x).type(torch.BoolTensor)
+                ).type(torch.BoolTensor).to(x.device)
                 pad = ceil(pad / self.downsample_factor)
                 padding_mask[-1, -pad:] = True
+            else:
+                padding_mask = None
             x = self.encoder(x, padding_mask=padding_mask)
             x = self.decoder(x)
             x = x.transpose(1, 2)

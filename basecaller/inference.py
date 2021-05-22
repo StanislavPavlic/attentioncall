@@ -62,7 +62,7 @@ if __name__ == '__main__':
     read_path = sys.argv[2]
     model = load_model(model_path)
     model.eval()
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     batch_size = model.batch_size
     chunk_size = model.chunk_size
@@ -79,8 +79,6 @@ if __name__ == '__main__':
         last_batch[:remainder] = read[-remainder:]
         last_batch = last_batch.reshape(last_batch_size, chunk_size)
         pad = last_batch_size * chunk_size - remainder
-        batches = []
-        pads = []
         batches.append(last_batch)
         pads.append(pad)
 
