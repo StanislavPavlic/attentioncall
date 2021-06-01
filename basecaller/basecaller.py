@@ -246,10 +246,10 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--num_workers', type=int, default=4,
                             help="How many subprocesses to use for data loading")
 
-        parser.add_argument('--lr', type=float, default=3e-5,
+        parser.add_argument('--lr', type=float, default=1e-4,
                             help="Learning rate")
 
-        parser.add_argument('--gamma', type=float, default=1,
+        parser.add_argument('--gamma', type=float, default=0.95,
                             help="Learning rate decay factor")
 
         parser.add_argument('--encoder', type=str, default=None,
@@ -267,19 +267,13 @@ class Basecaller(pl.LightningModule):
                             ],
                             help="Feature encoder: set convolution layers")
 
-        parser.add_argument('--fe_dropout', type=float, default=0.0,
+        parser.add_argument('--fe_dropout', type=float, default=0.15,
                             help="Feature encoder: dropout")
 
         parser.add_argument('--fe_bias', default=False, action='store_true',
                             help="Feature encoder: turn on convolution bias")
 
-        parser.add_argument('--fe_residual', default=True, action='store_true',
-                            help="Feature encoder: turn on residual connections")
-
-        parser.add_argument('--fe_separable', default=True, action='store_true',
-                            help="Feature encoder: turn on separable convolutions")
-
-        parser.add_argument('--fe_repeat', type=int, default=3,
+        parser.add_argument('--fe_repeat', type=int, default=1,
                             help="Feature encoder: number of times a block is repeated")
 
         parser.add_argument('--trns_dim_feedforward', type=int, default=2048,
@@ -288,10 +282,10 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--trns_nhead', type=int, default=8,
                             help="Transformer: number of heads in the multi head attention models")
 
-        parser.add_argument('--trns_n_layers', type=int, default=8,
+        parser.add_argument('--trns_n_layers', type=int, default=10,
                             help="Transformer: number of sub-encoder-layers in the transformer encoder")
 
-        parser.add_argument('--trns_dropout', type=float, default=0.0,
+        parser.add_argument('--trns_dropout', type=float, default=0.05,
                             help="Transformer: dropout")
 
         parser.add_argument('--trns_activation', type=str, default='gelu',
@@ -308,7 +302,7 @@ class Basecaller(pl.LightningModule):
         parser.add_argument('--fd_bias', default=False, action='store_true',
                             help="Feature decoder: turn on convolution bias")
 
-        parser.add_argument('--fd_repeat', type=int, default=3,
+        parser.add_argument('--fd_repeat', type=int, default=1,
                             help="Feature decoder: number of times a block is repeated")
 
         return parser
