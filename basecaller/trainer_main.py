@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.utilities.seed import seed_everything
 
 from basecaller import Basecaller
@@ -10,6 +11,12 @@ from datasets import BasecallDataModule
 if __name__ == '__main__':
     seed_everything(seed=42)
     wandb_logger = WandbLogger(project="basecaller")
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val/accuracy',
+        filename='basecaller-{epoch:02d}-{val/accuracy:.2f}',
+        save_top_k=5,
+        mode='max',
+    )
 
     model_parser = ArgumentParser(add_help=False)
 
@@ -41,7 +48,8 @@ if __name__ == '__main__':
     # init the trainer
     trainer = Trainer.from_argparse_args(
         args,
-        logger=wandb_logger
+        logger=wandb_logger,
+        callbacks=[checkpoint_callback]
     )
 
     trainer.tune(
