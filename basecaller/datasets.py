@@ -169,7 +169,8 @@ class BasecallDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
-            shuffle=True
+            shuffle=True,
+            drop_last=True
         )
 
     def val_dataloader(self):
@@ -179,7 +180,8 @@ class BasecallDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
-            shuffle=False
+            shuffle=False,
+            drop_last=True
         )
 
 
@@ -202,7 +204,6 @@ if __name__ == "__main__":
     # print(ds[12])
     #
     # print(ds[101])
-
     for b in DataLoader(ds, collate_fn=pad_collate_fn, batch_size=4):
         x, y, l = b
         print(x, y, l)

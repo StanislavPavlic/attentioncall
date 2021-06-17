@@ -75,17 +75,18 @@ if __name__ == '__main__':
         batches = list(read[:-remainder].reshape(-1, batch_size, chunk_size))
         pads = [None] * len(batches)
 
-        last_batch = np.zeros(last_batch_size * chunk_size, dtype=np.float32)
-        last_batch[:remainder] = read[-remainder:]
-        last_batch = last_batch.reshape(last_batch_size, chunk_size)
-        pad = last_batch_size * chunk_size - remainder
-        batches.append(last_batch)
-        pads.append(pad)
+        if remainder > 0:
+            last_batch = np.zeros(last_batch_size * chunk_size, dtype=np.float32)
+            last_batch[:remainder] = read[-remainder:]
+            last_batch = last_batch.reshape(last_batch_size, chunk_size)
+            pad = last_batch_size * chunk_size - remainder
+            batches.append(last_batch)
+            pads.append(pad)
 
         basecalled_seq = ""
         for batch, pad in zip(batches, pads):
             batch = torch.from_numpy(batch).to(device)
-            pred = model(batch, pad=pad)
+            pred = model(batch, pad=pad, beam_size=1)
             basecalled_seq += ''.join(pred)
 
         with open("basecalls.fasta", "a") as f:

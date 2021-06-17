@@ -33,6 +33,7 @@ if __name__ == '__main__':
 
     model_args, remaining_args = model_parser.parse_known_args()
     args = parser.parse_args(remaining_args)
+    model_args.max_epochs = args.max_epochs
 
     # init the model
     model = Basecaller(model_args)

@@ -10,7 +10,7 @@ from torch.nn import functional as F
 
 from datasets import base_to_idx, alphabet, to_seq
 from poremodel import PoreModel
-from util import layers, accuracy
+from util import layers, accuracy, get_cosine_schedule_with_warmup
 
 
 class FeatureDecoderBlock(nn.Module):
@@ -219,7 +219,7 @@ class Basecaller(pl.LightningModule):
     def configure_optimizers(self):
         optimizers = [torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-5)]
         schedulers = [
-            torch.optim.lr_scheduler.ExponentialLR(optimizers[0], gamma=self.gamma)
+            # torch.optim.lr_scheduler.ExponentialLR(optimizers[0], gamma=self.gamma)
             # {
             #    'scheduler': torch.optim.lr_scheduler.OneCycleLR(
             #                     optimizers[0],
@@ -230,6 +230,7 @@ class Basecaller(pl.LightningModule):
             #    'interval': 'step',
             #    'frequency': 1
             # }
+                get_cosine_schedule_with_warmup(optimizers[0], num_warmup_steps=1 * 3793, num_training_steps=self.max_epochs * 3793)
         ]
         return optimizers, schedulers
 
