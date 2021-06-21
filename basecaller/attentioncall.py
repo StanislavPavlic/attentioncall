@@ -95,7 +95,7 @@ class FeatureDecoder(nn.Module):
         return x
 
 
-class Basecaller(pl.LightningModule):
+class AttentionCall(pl.LightningModule):
     def __init__(self, args: Union[Namespace, Dict], train_mode=True):
         super().__init__()
 
@@ -267,9 +267,6 @@ class Basecaller(pl.LightningModule):
                                 (512, 3, 1)
                             ],
                             help="Feature encoder: set convolution layers")
-
-        parser.add_argument('--fe_dropout', type=float, default=0.15,
-                            help="Feature encoder: dropout")
 
         parser.add_argument('--fe_bias', default=False, action='store_true',
                             help="Feature encoder: turn on convolution bias")

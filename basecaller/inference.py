@@ -7,7 +7,7 @@ import torch
 from ont_fast5_api.fast5_interface import get_fast5_file
 from tqdm import tqdm
 
-from basecaller import Basecaller
+from attentioncall import AttentionCall
 
 
 def get_files(path, recursive=False):
@@ -43,7 +43,7 @@ def get_reads(path, recursive=False):
 
 
 def load_model(path):
-    model = Basecaller.load_from_checkpoint(path, train_mode=False)
+    model = AttentionCall.load_from_checkpoint(path, train_mode=False)
     return model
 
 

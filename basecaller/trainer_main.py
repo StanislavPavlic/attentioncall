@@ -5,7 +5,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.utilities.seed import seed_everything
 
-from basecaller import Basecaller
+from attentioncall import AttentionCall
 from datasets import BasecallDataModule
 
 if __name__ == '__main__':
@@ -25,10 +25,10 @@ if __name__ == '__main__':
     model_parser.add_argument('--val_set', type=str, help="Path to directory containing validation dataset")
 
     # add model specific args
-    model_parser = Basecaller.add_model_specific_args(model_parser)
+    model_parser = AttentionCall.add_model_specific_args(model_parser)
 
     # add all the available trainer options to argparse
-    parser = ArgumentParser(description='Basecaller', parents=[model_parser])
+    parser = ArgumentParser(description='AttentionCall', parents=[model_parser])
     parser = Trainer.add_argparse_args(parser)
 
     model_args, remaining_args = model_parser.parse_known_args()
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     model_args.max_epochs = args.max_epochs
 
     # init the model
-    model = Basecaller(model_args)
+    model = AttentionCall(model_args)
 
     # init the datamodule
     datamodule = BasecallDataModule(
