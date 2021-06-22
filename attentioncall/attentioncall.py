@@ -74,7 +74,8 @@ class FeatureDecoder(nn.Module):
     Feature decoder which consists of feature decoder blocks that decodes 1D temporal data using transposed convolution.
     """
 
-    def __init__(self, in_channels: int, conv_t_layers: List[Tuple[int, int, int]], bias: bool = False, repeat: int = 1):
+    def __init__(self, in_channels: int, conv_t_layers: List[Tuple[int, int, int]], bias: bool = False,
+                 repeat: int = 1):
         super(FeatureDecoder, self).__init__()
 
         self.blocks = nn.ModuleList()
@@ -198,39 +199,10 @@ class AttentionCall(pl.LightningModule):
 
         self.log('val/accuracy', val_acc, sync_dist=True)
 
-    # def validation_epoch_end(self, validation_step_outputs):
-    #     dummy_input = torch.zeros((1, self.hparams["chunk_size"]), device=self.device)
-    #     model_filename = f"model_{str(self.global_step).zfill(5)}.onnx"
-    #     torch.onnx.export(self, dummy_input, model_filename)
-    #     wandb.save(model_filename)
-
-    # def test_step(self, batch, batch_idx):
-    #     # x = [N x T], y = [T'], l = [N]
-    #     x, y, l = batch
-    #     # N x T -> N x T x E
-    #     x = self.encoder(x)
-    #     # N x T x E -> N x T x C
-    #     x = self.fc(x)
-    #     # N x T x C -> T x N x C
-    #     x = x.transpose(0, 1)
-    #     loss = self.get_loss(x, y, l)
-    #     self.log('test/loss', loss, sync_dist=True)
-
     def configure_optimizers(self):
         optimizers = [torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-5)]
         schedulers = [
-            # torch.optim.lr_scheduler.ExponentialLR(optimizers[0], gamma=self.gamma)
-            # {
-            #    'scheduler': torch.optim.lr_scheduler.OneCycleLR(
-            #                     optimizers[0],
-            #                     max_lr=self.lr,
-            #                     epochs=50,
-            #                     steps_per_epoch=16872
-            #                 ),
-            #    'interval': 'step',
-            #    'frequency': 1
-            # }
-                get_cosine_schedule_with_warmup(optimizers[0], num_warmup_steps=1 * 3793, num_training_steps=self.max_epochs * 3793)
+            torch.optim.lr_scheduler.ExponentialLR(optimizers[0], gamma=self.gamma)
         ]
         return optimizers, schedulers
 

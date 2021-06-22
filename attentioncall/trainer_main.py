@@ -61,4 +61,3 @@ if __name__ == '__main__':
         model=model,
         datamodule=datamodule
     )
-    # trainer.test(model)
