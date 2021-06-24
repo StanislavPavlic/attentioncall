@@ -49,11 +49,11 @@ def load_model(path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='AttentionCall inference runner')
-    parser.add_argument('model', help='Path to model checkpoint file .ckpt')
-    parser.add_argument('reads', help='Path to raw signal reads in .fast5 format')
-    parser.add_argument('out', help='Path to .fasta output file')
+    parser.add_argument('model', help='path to model checkpoint file .ckpt')
+    parser.add_argument('reads', help='path to raw signal reads in .fast5 format')
+    parser.add_argument('out', help='path to .fasta output file')
     parser.add_argument('--device', default='cpu',
-                        help='Device to run the inference on, one of:'
+                        help='device to run the inference on, one of:'
                              '[\'cpu\', \'cuda\', \'cuda:X\'] where X is the device ordinal')
     args = parser.parse_args()
     model_path = args.model
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     chunk_size = model.chunk_size
 
     reads = get_reads(read_path)
-    for i, (read_id, read) in enumerate(tqdm(reads)):
+    for i, (read_id, read) in enumerate(tqdm(reads, desc='basecalling reads')):
         T = read.shape[0]
         remainder = T % (batch_size * chunk_size)
         last_batch_size = remainder // chunk_size + 1
@@ -100,6 +100,6 @@ if __name__ == '__main__':
         with open(out_path, "a") as f:
             f.writelines([">" + read_id + "\n", basecalled_seq + "\n"])
 
-    print(f"Seconds elapsed: {time.time() - start_time} s")
-    print("Basecalling done.")
-    print(f"Sequences basecalled: {len(reads)}")
+    print(f"seconds elapsed: {time.time() - start_time} s")
+    print("basecalling done.")
+    print(f"sequences basecalled: {len(reads)}")
