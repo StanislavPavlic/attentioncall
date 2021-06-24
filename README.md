@@ -32,9 +32,14 @@ python trainer_main.py --train_set /path/to/train_set.hdf5 --val_set /path/to/va
 ```
 If you wish to define your parameters, see the help message for a list of available parameters.
 
+Before running inference, please refer to the help message:
+```bash
+python inference.py --help
+```
+
 For running inference with a model checkpoint:
 ```bash
-python inference.py /path/to/model_checkpoint.ckpt /path/to/read_directory
+python inference.py /path/to/model_checkpoint.ckpt /path/to/read_directory /path/to/output_file.fasta --device cuda
 ```
 
 ## Data format
