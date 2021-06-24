@@ -1,4 +1,4 @@
-import sys
+import argparse
 import time
 from pathlib import Path
 
@@ -47,26 +47,34 @@ def load_model(path):
     return model
 
 
-def basecall(model, reads, batch_size=32, chunk_size=0, beamsize=1):
-    for read_id, read in reads:
-        pass
-
-
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='AttentionCall inference runner')
+    parser.add_argument('model', help='Path to model checkpoint file .ckpt')
+    parser.add_argument('reads', help='Path to raw signal reads in .fast5 format')
+    parser.add_argument('out', help='Path to .fasta output file')
+    parser.add_argument('--device', default='cpu',
+                        help='Device to run the inference on, one of:'
+                             '[\'cpu\', \'cuda\', \'cuda:X\'] where X is the device ordinal')
+    args = parser.parse_args()
+    model_path = args.model
+    read_path = args.reads
+    out_path = args.out
+    device = args.device
+
     start_time = time.time()
 
-    with open("basecalls.fasta", "w") as f:
+    with open(out_path, "w") as f:
         f.write("")
 
-    model_path = sys.argv[1]
-    read_path = sys.argv[2]
     model = load_model(model_path)
     model.eval()
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    if device.startswith('cuda'):
+        assert torch.cuda.is_available(), 'cuda is not available'
+    device = torch.device(device)
     model.to(device)
     batch_size = model.batch_size
     chunk_size = model.chunk_size
-    nhead = model.trns_nhead
+
     reads = get_reads(read_path)
     for i, (read_id, read) in enumerate(tqdm(reads)):
         T = read.shape[0]
@@ -89,6 +97,9 @@ if __name__ == '__main__':
             pred = model(batch, pad=pad, beam_size=1)
             basecalled_seq += ''.join(pred)
 
-        with open("basecalls.fasta", "a") as f:
+        with open(out_path, "a") as f:
             f.writelines([">" + read_id + "\n", basecalled_seq + "\n"])
+
     print(f"Seconds elapsed: {time.time() - start_time} s")
+    print("Basecalling done.")
+    print(f"Sequences basecalled: {len(reads)}")

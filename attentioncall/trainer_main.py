@@ -28,7 +28,7 @@ if __name__ == '__main__':
     model_parser = AttentionCall.add_model_specific_args(model_parser)
 
     # add all the available trainer options to argparse
-    parser = ArgumentParser(description='AttentionCall', parents=[model_parser])
+    parser = ArgumentParser(description='AttentionCall trainer', parents=[model_parser])
     parser = Trainer.add_argparse_args(parser)
 
     model_args, remaining_args = model_parser.parse_known_args()
