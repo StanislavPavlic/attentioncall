@@ -36,7 +36,7 @@ def get_signal_data(read):
 def get_reads(path, recursive=False):
     files = get_files(Path(path), recursive)
     reads = []
-    for file in tqdm(files):
+    for file in tqdm(files, desc='loading reads'):
         with get_fast5_file(str(file), mode='r') as f5:
             reads += [(read.read_id, get_signal_data(read)) for read in f5.get_reads()]
     return reads
